@@ -21,4 +21,4 @@ Shows the location of race "sweep" teams (last runners on course, removing flagg
 Plain text on the MQTT topic (no timestamp – receive time is used; altitude is feet and stays in feet end to end):
 - Fix: `Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V mv` (last token `mv` = moving, `idle` = stopped)
 - No fix: `Sweep1: no fix (no position yet) idle`
-A JSON object (name/lat/lon/ts/alt/moving/fix) is also accepted. `sats` and `bat` are parsed past but not stored yet.
+A JSON object (name/lat/lon/ts/alt/moving/fix) is also accepted. `sats` (satellites) and `bat` (volts) are stored and shown; `sats` also accepts `satellites` in JSON.

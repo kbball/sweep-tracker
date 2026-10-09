@@ -92,10 +92,11 @@ func TestPositionsAndTrackers(t *testing.T) {
 	pr, tr := s.Positions(), s.Trackers()
 	base := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	alt := 10.0
+	sats := 9
 	add := func(name string, min int, fix bool) {
 		p := &domain.Position{TrackerName: name, HasFix: fix, Time: base.Add(time.Duration(min) * time.Minute), ReceivedAt: base}
 		if fix {
-			p.Lat, p.Lon, p.Alt, p.Moving, p.BatteryV = 40, -105, &alt, true, &alt
+			p.Lat, p.Lon, p.Alt, p.Moving, p.BatteryV, p.Sats = 40, -105, &alt, true, &alt, &sats
 		}
 		if err := pr.Add(ctx, p); err != nil || p.ID == 0 {
 			t.Fatalf("%v %d", err, p.ID)
@@ -111,7 +112,7 @@ func TestPositionsAndTrackers(t *testing.T) {
 	if err != nil || len(h) != 3 {
 		t.Fatalf("%v %+v", err, h)
 	}
-	if h[0].TrackerName != "a" || h[0].HasFix || !h[1].HasFix || !h[1].Time.Equal(base.Add(2*time.Minute)) || *h[1].Alt != 10 || h[1].BatteryV == nil || *h[1].BatteryV != 10 || h[0].BatteryV != nil || !h[1].Moving {
+	if h[0].TrackerName != "a" || h[0].HasFix || !h[1].HasFix || !h[1].Time.Equal(base.Add(2*time.Minute)) || *h[1].Alt != 10 || h[1].BatteryV == nil || *h[1].BatteryV != 10 || h[0].BatteryV != nil || !h[1].Moving || h[1].Sats == nil || *h[1].Sats != 9 || h[0].Sats != nil {
 		t.Fatalf("%+v", h)
 	}
 	if h, err = pr.History(ctx, nil, 2); err != nil || h != nil {

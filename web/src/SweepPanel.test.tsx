@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SweepPanel } from './SweepPanel'
 import { pos, track } from './test/fixtures'
@@ -15,30 +15,81 @@ describe('SweepPanel', () => {
     expect(screen.getByText(/No sweep teams/)).toBeInTheDocument()
   })
 
-  it('shows state chips, and expands the first team by default with fading history', () => {
+  it('shows state chips and expands the first team by default, with its reports tucked away', async () => {
+    const u = userEvent.setup()
     render(<SweepPanel now={Date.now()} tracks={tracks()} />)
     expect(screen.getByText('Moving')).toBeInTheDocument()
     expect(screen.getByText('No GPS fix')).toBeInTheDocument()
     expect(screen.getByText('No reports yet')).toBeInTheDocument()
-    expect(screen.getAllByText(/3.77V/)).toHaveLength(3) // Sweep 1's three reports
-    expect(screen.getAllByText(/1,500 ft/)).toHaveLength(4) // 3 history rows + the summary line
     expect(screen.getByText('3.77 V')).toBeInTheDocument() // summary line
+    expect(screen.getByRole('button', { name: /Sweep 1/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /Sweep 2/ })).toHaveAttribute('aria-expanded', 'false')
+    // The history is a collapsed section until asked for, and only on the expanded team.
+    const toggle = screen.getByRole('button', { name: /Recent reports \(3\)/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('list', { name: /recent reports/ })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /Recent reports/ })).toHaveLength(1)
+    await u.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByText(/3.77V/)).toHaveLength(3)
+    expect(screen.getAllByText(/1,500 ft/)).toHaveLength(4) // 3 history rows + the summary line
     const ops = screen.getAllByRole('listitem').filter((li) => li.style.opacity).map((r) => Number(r.style.opacity))
     expect(ops[0]).toBe(1)
     expect(ops[1]).toBeLessThan(ops[0])
     expect(ops[2]).toBeLessThan(ops[1])
-    expect(screen.getByRole('button', { name: /Sweep 1/ })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: /Sweep 2/ })).toHaveAttribute('aria-expanded', 'false')
+    await u.click(toggle) // and closes again
+    expect(screen.queryByRole('list', { name: /recent reports/ })).toBeNull()
   })
 
   it('expands the selected team and reports selection', async () => {
     const onSelect = vi.fn()
     render(<SweepPanel now={Date.now()} tracks={tracks()} selected="sw2" onSelect={onSelect} />)
+    await userEvent.click(screen.getByRole('button', { name: /Recent reports \(2\)/ }))
     expect(screen.getByText('no fix · 3.50V')).toBeInTheDocument()
     expect(screen.getByText(/stopped$/)).toBeInTheDocument()
     expect(screen.queryAllByText(/1,500 ft/)).toHaveLength(1) // only sw2's second report has altitude
     await userEvent.click(screen.getByRole('button', { name: /Sweep 3/ }))
     expect(onSelect).toHaveBeenCalledWith('sw3')
+    expect(screen.queryByRole('button', { name: /Recent reports \(0\)/ })).toBeNull() // nothing to show for a team without reports
+  })
+
+  it('remembers which teams have their reports open', async () => {
+    const u = userEvent.setup()
+    const { rerender } = render(<SweepPanel now={Date.now()} tracks={tracks()} selected="sw1" />)
+    await u.click(screen.getByRole('button', { name: /Recent reports \(3\)/ }))
+    rerender(<SweepPanel now={Date.now()} tracks={tracks()} selected="sw2" />)
+    expect(screen.queryByRole('list', { name: 'Sweep 1 recent reports' })).toBeNull() // not the expanded team any more
+    rerender(<SweepPanel now={Date.now()} tracks={tracks()} selected="sw1" />)
+    expect(screen.getByRole('list', { name: 'Sweep 1 recent reports' })).toBeInTheDocument() // still open when it comes back
+  })
+
+  it('shows battery voltage, satellites and elevation with icons', async () => {
+    const { container } = render(<SweepPanel now={Date.now()} tracks={[track({ positions: [pos(1, { sats: 9 })] })]} />)
+    const battery = screen.getByTitle('Battery voltage')
+    expect(battery).toHaveTextContent('Battery 3.77 V')
+    expect(battery.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    const sats = screen.getByTitle('Satellites in view')
+    expect(sats).toHaveTextContent('Satellites 9')
+    expect(sats.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    const elevation = screen.getByTitle('Elevation')
+    expect(elevation).toHaveTextContent('Elevation 1,500 ft')
+    expect(elevation.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelectorAll('svg.glyph')).toHaveLength(3) // battery, satellites, elevation
+    await userEvent.click(screen.getByRole('button', { name: /Recent reports/ }))
+    expect(screen.getByText(/· 9 sats ·/)).toBeInTheDocument() // also in the report history
+  })
+
+  it('leaves out satellites and battery that were not reported, and shows sats on a no-fix report', async () => {
+    const { container } = render(<SweepPanel now={Date.now()} tracks={[track({ positions: [pos(1, { hasFix: false, batteryV: undefined, sats: 2 })] })]} />)
+    expect(screen.queryByTitle('Battery voltage')).toBeNull()
+    expect(screen.getByTitle('Satellites in view')).toHaveTextContent('2')
+    expect(screen.queryByTitle('Elevation')).toBeNull() // no fix, so no elevation
+    expect(container.querySelectorAll('svg.glyph')).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: /Recent reports/ }))
+    expect(screen.getByText('no fix · 2 sats')).toBeInTheDocument()
+    cleanup()
+    render(<SweepPanel now={Date.now()} tracks={[track({ positions: [pos(1)] })]} />)
+    expect(screen.queryByTitle('Satellites in view')).toBeNull()
   })
 
   it('shows the mile marker from the team progress', () => {

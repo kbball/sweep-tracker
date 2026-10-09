@@ -47,5 +47,6 @@ func (s *SimTracker) Step(dt time.Duration) (msg string, done bool) {
 		alt = fmt.Sprintf(" alt=%.0fft", *p.Ele*metersToFeet)
 	}
 	bat := 4.15 - 0.45*(s.dist/s.total) // drains over the run
-	return fmt.Sprintf("%s: %.5f,%.5f%s sats=10 bat=%.2fV %s", s.Name, p.Lat, p.Lon, alt, bat, state), done
+	sats := 7 + int(s.dist/400)%6       // 7..12, wandering as the team moves
+	return fmt.Sprintf("%s: %.5f,%.5f%s sats=%d bat=%.2fV %s", s.Name, p.Lat, p.Lon, alt, sats, bat, state), done
 }

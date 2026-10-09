@@ -3,14 +3,16 @@ Format: Keep a Changelog; versioning: Semantic Versioning.
 
 ## [Unreleased]
 ### Changed
+- Each team's report history is a collapsible "Recent reports" section (closed by default), and its rows no longer wrap awkwardly in the narrow panel.
 - Out-and-back courses: each aid station now has one marker per time the course passes it (detected within 75 m, shown as "(out)" and "(in)"). Admin → Aid stations lists the detected passes so you can untick ones that are just the trail running close by (stations with more than two passes are flagged for review). Existing courses get their passes detected when read.
-- A sweep team's mile marker and its place on the course strip now use its direction of travel: on an out-and-back course the way out and the way back run opposite ways, so a team heading home is placed on the return leg. A team resting at an aid station is judged by how it arrived (movement within the last 6 hours), reports from more than 12 hours before the event date are ignored, and passes you unticked in Admin are not places a team can be.
+- A sweep team's mile marker and its place on the course strip now follow its direction of travel: it is placed at the pass that is the smallest step forward along the course from where it was a moment ago, so on an out-and-back a team heading home is placed on the return leg (and one arriving at a finish that is also the start is placed at the finish). A team resting at an aid station is judged by how it arrived (movement within the last 6 hours), reports from more than 12 hours before the event date are ignored, and passes you unticked in Admin are not places a team can be.
 - Offline maps now show how much disk space each layer uses (Admin → Offline maps).
 - Offline map downloads cover 2.5 km around the course by default (was 2 km).
 - The live map opens centred on the course, at the zoom half way between the shallowest and deepest downloaded zoom (zoom 10 when nothing is known), instead of fitting the whole course. The Fit to course button still fits it.
 - Course progress strip labels alternate between two rows and stay inside the strip; the initial fit leaves room for the strip.
 - New map-first live view: full-screen map with a floating team card (state, last report, mile marker, battery, altitude; click a team to expand its history and pan to it), a left rail, restyled map controls, and a course progress strip showing the elevation profile, aid stations and each team's position.
 ### Added
+- Satellite count (`sats`) from tracker messages is stored and shown next to the battery voltage, each with a Google Material icon (Satellite Alt, Battery 4 Bar, Landscape 2 for elevation; inlined as SVG so they work offline). Also accepted as `satellites` in JSON.
 - `sweeptracker simulate --start-mile`: start the simulated sweep part-way along the course (for example at a turnaround).
 - Admin: each event has explicit View, Edit and Delete buttons (the one being edited is marked "Editing") instead of clicking its name. Deleting an event asks for confirmation first.
 - Admin restyled to match: panel cards, selectable event list, themed inputs, primary/ghost/danger buttons, file pickers, separate "New event" and "Import an event" cards, team rows, map download chips and progress.
