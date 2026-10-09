@@ -21,6 +21,24 @@ export function ageLabel(iso: string, now: number): string {
   return `${Math.floor(s / 86400)}d ago`
 }
 
+export type EventTiming = 'today' | 'upcoming' | 'past'
+
+/** Compares an event's date to now by calendar day (UTC date, as events store a date, not a time). */
+export function eventTiming(iso: string, now: Date): EventTiming {
+  const day = iso.slice(0, 10)
+  const today = now.toISOString().slice(0, 10)
+  return day === today ? 'today' : day > today ? 'upcoming' : 'past'
+}
+
+/** Human-readable size using decimal units, e.g. 1536 -> "1.5 KB". */
+export function formatBytes(n: number): string {
+  if (n < 1000) return `${n} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let v = n, i = -1
+  do { v /= 1000; i++ } while (v >= 1000 && i < units.length - 1)
+  return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${units[i]}`
+}
+
 export const metersToMiles = (m: number) => m / 1609.344
 
 /** Newest report that actually has a GPS fix. */

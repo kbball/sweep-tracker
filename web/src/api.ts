@@ -32,6 +32,7 @@ export const api = {
   positions: (id: string, history = 10) => req<TrackerHistory[]>('GET', `/api/events/${id}/positions?history=${history}`),
   knownTrackers: () => req<KnownTracker[]>('GET', '/api/trackers'),
   maps: () => req<MapsInfo>('GET', '/api/maps'),
+  clearMaps: () => req<void>('DELETE', '/api/maps'),
   refreshMaps: (eventId: string, minZoom: number, maxZoom: number, bufferM: number) =>
     send<RefreshStatus>('POST', '/api/maps/refresh', { eventId, minZoom, maxZoom, bufferM }),
 }

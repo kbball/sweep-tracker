@@ -120,3 +120,29 @@ func TestSubscribeFailureAndConnectionLoss(t *testing.T) {
 	o.OnConnectionLost(c, errors.New("lost"))
 	c.Disconnect(100)
 }
+
+func TestPublisherDeliversToSubscriber(t *testing.T) {
+	url := startBroker(t)
+	rec := &recorder{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go NewSubscriber(Config{BrokerURL: url, Topic: "mesh/#", ClientID: "sub2"}, rec).Run(ctx)
+
+	p, err := NewPublisher(Config{BrokerURL: url, ClientID: "pub2", Username: "u", Password: "p"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	eventually(t, func() bool {
+		if err := p.Publish("mesh/s1", []byte("s1: no fix (no position yet) idle")); err != nil {
+			t.Fatal(err)
+		}
+		return rec.count() > 0
+	})
+}
+
+func TestPublisherConnectFailure(t *testing.T) {
+	if _, err := NewPublisher(Config{BrokerURL: "tcp://127.0.0.1:1", ClientID: "x"}); err == nil {
+		t.Fatal("expected connect error")
+	}
+}

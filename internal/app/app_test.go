@@ -264,6 +264,7 @@ func (fakeTiles) Tile(string, int, int, int) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("x")), nil
 }
 func (fakeTiles) Count(string) int { return 0 }
+func (fakeTiles) Clear() error     { return nil }
 
 type fakeDL struct {
 	mu    sync.Mutex
@@ -323,8 +324,14 @@ func TestMaps(t *testing.T) {
 	if err := m.Refresh(ctx, e.ID, 100, 5, 10); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatal("concurrent refresh")
 	}
+	if err := m.Clear(); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal("clear while running")
+	}
 	close(dl.gate)
 	m.Wait()
+	if err := m.Clear(); err != nil {
+		t.Fatal(err)
+	}
 	if st := m.Status(); st.Running || st.Error != "" || st.Done != 1 || st.Total != 2 || len(dl.boxes) != 2 {
 		t.Fatalf("%+v", st)
 	}

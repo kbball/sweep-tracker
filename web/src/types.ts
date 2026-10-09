@@ -25,7 +25,7 @@ export interface Position {
 }
 export interface TrackerHistory extends EventTracker { positions: Position[] }
 export interface KnownTracker { name: string; lastSeen: string }
-export interface MapLayer { id: string; name: string; attribution: string; minZoom: number; maxZoom: number; tileCount: number }
+export interface MapLayer { id: string; name: string; attribution: string; minZoom: number; maxZoom: number; tileCount: number; sizeBytes: number; minTileZoom: number; maxTileZoom: number }
 export interface RefreshStatus { running: boolean; layer?: string; done: number; total: number; error?: string }
 export interface MapsInfo { layers: MapLayer[]; status: RefreshStatus }
 export interface AppConfig { version: string }

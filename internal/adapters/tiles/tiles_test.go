@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -83,7 +85,7 @@ func TestDownloadAndServe(t *testing.T) {
 		t.Fatalf("redownload hit network: %v %d", err, hits.Load())
 	}
 	l := s.Layers()
-	if len(l) != 1 || l[0].TileCount != n || l[0].MaxZoom != 12 {
+	if len(l) != 1 || l[0].TileCount != n || l[0].SizeBytes < int64(n)*int64(len("PNGDATA/")) || l[0].MaxTileZoom == 0 || l[0].MaxTileZoom > 12 || l[0].MaxZoom != 12 {
 		t.Fatalf("%+v", l)
 	}
 	ids := d.LayerIDs()
@@ -170,7 +172,30 @@ func TestPutErrors(t *testing.T) {
 }
 
 func TestDefaultSources(t *testing.T) {
-	if len(DefaultSources) != 2 || DefaultSources[0].ID != "topo" || DefaultSources[1].ID != "terrain" {
+	if len(DefaultSources) != 1 || DefaultSources[0].ID != "topo" {
 		t.Fatal("default sources")
+	}
+}
+
+func TestTileZoomRange(t *testing.T) {
+	root := t.TempDir()
+	s := NewStore(root, DefaultSources)
+	if lo, hi := s.tileZooms("topo"); lo != 0 || hi != 0 {
+		t.Fatalf("empty store: %d %d", lo, hi)
+	}
+	for _, z := range []int{9, 7, 11} {
+		if err := s.put("topo", z, 1, 1, strings.NewReader("x")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An empty zoom folder and a stray non-numeric entry are ignored.
+	_ = os.MkdirAll(filepath.Join(root, "topo", "3", "1"), 0o755)
+	_ = os.MkdirAll(filepath.Join(root, "topo", "junk"), 0o755)
+	_ = os.WriteFile(filepath.Join(root, "topo", "99"), []byte("file, not a zoom folder"), 0o644)
+	if lo, hi := s.tileZooms("topo"); lo != 7 || hi != 11 {
+		t.Fatalf("got %d..%d, want 7..11", lo, hi)
+	}
+	if l := s.Layers()[0]; l.MinTileZoom != 7 || l.MaxTileZoom != 11 {
+		t.Fatalf("%+v", l)
 	}
 }

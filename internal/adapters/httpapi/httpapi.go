@@ -35,7 +35,7 @@ type Server struct {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /api/config", s.config)
 
 	mux.HandleFunc("GET /api/events", s.listEvents)
@@ -52,7 +52,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/maps", s.maps)
 	mux.HandleFunc("POST /api/maps/refresh", s.refreshMaps)
-	mux.HandleFunc("GET /tiles/{layer}/{z}/{x}/{y}", s.tile)
+	mux.HandleFunc("DELETE /api/maps", s.clearMaps)
+	mux.HandleFunc("GET /api/tiles/{layer}/{z}/{x}/{y}", s.tile)
 
 	if s.Static != nil {
 		mux.Handle("/", spa(s.Static))
@@ -207,10 +208,10 @@ func (s *Server) refreshMaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.BufferM == 0 {
-		in.BufferM = 2000
+		in.BufferM = 2500
 	}
 	if in.MaxZoom == 0 {
-		in.MaxZoom = 12
+		in.MaxZoom = 15
 	}
 	if in.MinZoom == 0 {
 		in.MinZoom = 6
@@ -220,6 +221,14 @@ func (s *Server) refreshMaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, s.Maps.Status())
+}
+
+func (s *Server) clearMaps(w http.ResponseWriter, _ *http.Request) {
+	if err := s.Maps.Clear(); err != nil {
+		fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) tile(w http.ResponseWriter, r *http.Request) {

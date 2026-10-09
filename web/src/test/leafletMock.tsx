@@ -7,6 +7,14 @@ const box = (name: string) => ({ children, ...props }: { children?: ReactNode; [
 
 export const fitBounds = vi.fn()
 
+export const setView = vi.fn()
+export const panTo = vi.fn()
+export const zoomIn = vi.fn()
+export const zoomOut = vi.fn()
+export const invalidateSize = vi.fn()
+const container = document.createElement('div')
+const map = { fitBounds, setView, panTo, zoomIn, zoomOut, invalidateSize, getContainer: () => container } // stable identity, like the real Leaflet map
+
 export const leafletMock = {
   MapContainer: box('map'),
   TileLayer: box('tile'),
@@ -14,5 +22,5 @@ export const leafletMock = {
   CircleMarker: box('marker'),
   Tooltip: box('tooltip'),
   LayersControl: Object.assign(box('layers'), { BaseLayer: box('baselayer') }),
-  useMap: () => ({ fitBounds }),
+  useMap: () => map,
 }

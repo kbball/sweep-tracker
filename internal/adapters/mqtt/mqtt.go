@@ -72,3 +72,32 @@ func (s *Subscriber) Run(ctx context.Context) error {
 	c.Disconnect(250)
 	return nil
 }
+
+// Publisher sends payloads to the broker (used by the simulator).
+type Publisher struct{ c paho.Client }
+
+// NewPublisher connects to the broker or fails after a short timeout.
+func NewPublisher(cfg Config) (*Publisher, error) {
+	o := paho.NewClientOptions().AddBroker(cfg.BrokerURL).SetClientID(cfg.ClientID).SetConnectTimeout(10 * time.Second)
+	if cfg.Username != "" {
+		o.SetUsername(cfg.Username).SetPassword(cfg.Password)
+	}
+	c := paho.NewClient(o)
+	if tok := c.Connect(); !tok.WaitTimeout(15*time.Second) || tok.Error() != nil {
+		if tok.Error() != nil {
+			return nil, fmt.Errorf("mqtt connect: %w", tok.Error())
+		}
+		return nil, fmt.Errorf("mqtt connect: timed out")
+	}
+	return &Publisher{c: c}, nil
+}
+
+func (p *Publisher) Publish(topic string, payload []byte) error {
+	tok := p.c.Publish(topic, 1, false, payload)
+	if !tok.WaitTimeout(10 * time.Second) {
+		return fmt.Errorf("mqtt publish: timed out")
+	}
+	return tok.Error()
+}
+
+func (p *Publisher) Close() { p.c.Disconnect(250) }
