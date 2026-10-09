@@ -212,3 +212,20 @@ details.paste textarea { width: 100%; min-height: 8rem; font-family: ui-monospac
 .team-next { font-size: .8rem; color: var(--text-2); }
 .team-row select { flex: 1 1 14rem; min-width: 12rem; }
 .sweep .team-next { display: block; padding: 0 12px 10px; }
+
+/* Setup guide */
+.guide { padding: 14px 20px; margin-bottom: 16px; }
+.guide h2 { display: inline; font-size: 1.1rem; margin: 0; }
+.guide summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.guide summary::-webkit-details-marker { display: none; }
+ol.steps, ol.outline { margin: 12px 0 4px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+ol.outline { counter-reset: n; padding-left: 0; }
+ol.outline li { counter-increment: n; padding: 6px 0; }
+ol.outline li::before { content: counter(n) '. '; font-weight: 700; }
+.step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--border); }
+.step:first-child { border-top: 0; }
+.step .num { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; font-weight: 700; background: var(--neutral-bg); color: var(--neutral); }
+.step.done .num { background: var(--ok-bg); color: var(--ok); }
+.step.todo .num { background: var(--warn-bg); color: var(--warn); }
+.step .what p { margin: 2px 0 0; font-size: .85rem; color: var(--text-2); }
+.step.waiting .what, .step.optional .what { opacity: .75; }

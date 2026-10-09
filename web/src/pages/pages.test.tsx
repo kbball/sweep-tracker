@@ -132,9 +132,9 @@ describe('AdminPage', () => {
 
     await u.clear(screen.getByLabelText('Name'))
     await u.type(screen.getByLabelText('Name'), 'Renamed')
-    await u.click(screen.getByRole('button', { name: 'Save event' }))
+    await u.click(screen.getByRole('button', { name: 'Save details' }))
     expect(update).toHaveBeenCalledWith('e1', expect.objectContaining({ name: 'Renamed' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('Saved')
+    expect(await screen.findByRole('status')).toHaveTextContent('Details saved')
 
     await u.type(screen.getByLabelText('New event name'), 'New')
     await u.click(screen.getByRole('button', { name: 'Create' }))
@@ -149,6 +149,114 @@ describe('AdminPage', () => {
     await u.click(screen.getByRole('button', { name: 'Delete event' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(del).toHaveBeenCalledWith('e1')
+  })
+
+  describe('setup guide', () => {
+    const M = 1609.344
+    const course = {
+      name: 'C', distanceM: 20 * M, track: [{ lat: 0, lon: 0 }, { lat: 0.1, lon: 0 }],
+      waypoints: [{ name: 'Aid', lat: 0.05, lon: 0, passes: [{ distM: 5 * M, use: true, mile: 5.2 }, { distM: 15 * M, use: true }] }],
+    }
+    const stepOf = (title: string) => screen.getByText(title, { selector: 'strong' }).closest('li')!
+    // jsdom has no scrollIntoView: tests that add one put things back as they were.
+    afterEach(() => { delete (Element.prototype as Partial<Element>).scrollIntoView })
+
+    it('outlines the order before an event is chosen', async () => {
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event()])
+      at('/admin')
+      const guide = await screen.findByRole('region', { name: 'Setup guide' })
+      expect(within(guide).getByRole('heading', { name: 'Setting up an event' })).toBeInTheDocument()
+      const steps = within(guide).getAllByRole('listitem').map((li) => within(li).getByText(/./, { selector: 'strong' }).textContent)
+      expect(steps).toEqual(['Event details', 'Course', 'Aid stations and cutoffs', 'Sweep teams', 'Offline maps', 'Trackers reporting'])
+    })
+
+    it('shows where the selected event stands, and updates as it is set up', async () => {
+      const u = userEvent.setup()
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([{ name: 'sw1', lastSeen: 'x' }])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course, date: '2026-10-09T00:00:00Z', startTime: '12:00' })])
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      const guide = screen.getByRole('group', { name: 'Setup guide' })
+      await waitFor(() => expect(within(stepOf('Offline maps')).getByText('Done')).toBeInTheDocument()) // tiles are downloaded
+      expect(within(guide).getByText('5 of 6 done')).toBeInTheDocument() // all but the team starts
+      expect(within(stepOf('Event details')).getByText('Done')).toBeInTheDocument()
+      expect(within(stepOf('Aid stations and cutoffs')).getByText('Done')).toBeInTheDocument()
+      expect(within(stepOf('Sweep teams')).getByText('To do')).toBeInTheDocument() // an out-and-back course needs each team's start
+    })
+
+    it('says what is waiting on what for an event with nothing set up', async () => {
+      const u = userEvent.setup()
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course: null, startTime: undefined, trackers: [] })])
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      expect(within(stepOf('Course')).getByText('To do')).toBeInTheDocument()
+      expect(within(stepOf('Aid stations and cutoffs')).getByText('Waiting')).toBeInTheDocument()
+      expect(within(stepOf('Offline maps')).getByText('Waiting')).toBeInTheDocument()
+      expect(within(stepOf('Trackers reporting')).getByText('Waiting')).toBeInTheDocument()
+      expect(within(stepOf('Share')).getByText('Optional')).toBeInTheDocument()
+      expect(screen.getByText('0 of 6 done')).toBeInTheDocument()
+    })
+
+    it('marks the maps step done once a download brings tiles in', async () => {
+      const u = userEvent.setup()
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course })])
+      const empty = { ...maps, layers: [{ ...maps.layers[0], tileCount: 0 }] }
+      vi.spyOn(api, 'maps').mockResolvedValueOnce(empty).mockResolvedValue(maps)
+      vi.spyOn(api, 'refreshMaps').mockResolvedValue({ running: false, done: 0, total: 0 })
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      await waitFor(() => expect(within(stepOf('Offline maps')).getByText('To do')).toBeInTheDocument())
+      await u.click(screen.getByRole('button', { name: /Download/ }))
+      await waitFor(() => expect(within(stepOf('Offline maps')).getByText('Done')).toBeInTheDocument())
+    })
+
+    it('jumps to each step\'s section', async () => {
+      const u = userEvent.setup()
+      const scroll = vi.fn()
+      Element.prototype.scrollIntoView = scroll
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course })])
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      const expected: Record<string, string> = {
+        'Event details': 'setup-details', Course: 'setup-course', 'Aid stations and cutoffs': 'setup-stops',
+        'Sweep teams': 'setup-teams', 'Offline maps': 'setup-maps', 'Trackers reporting': 'setup-teams', Share: 'setup-share',
+      }
+      for (const [title, id] of Object.entries(expected)) {
+        scroll.mockClear()
+        await u.click(screen.getByRole('button', { name: `Go to ${title}` }))
+        expect(scroll).toHaveBeenCalledTimes(1)
+        expect(scroll.mock.contexts[0]).toBe(document.getElementById(id))
+        expect(document.getElementById(id)).not.toBeNull()
+      }
+    })
+
+    it('does not fail where scrolling is unavailable, and can be collapsed', async () => {
+      const u = userEvent.setup()
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course })])
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      await u.click(screen.getByRole('button', { name: 'Go to Course' }))
+      const guide = screen.getByRole('group', { name: 'Setup guide' }) as HTMLDetailsElement
+      expect(guide.open).toBe(true)
+      await u.click(within(guide).getByText('Setup guide'))
+      expect(guide.open).toBe(false)
+    })
+
+    it('lays the sections out in the order of the steps', async () => {
+      const u = userEvent.setup()
+      vi.spyOn(api, 'knownTrackers').mockResolvedValue([])
+      vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course })])
+      at('/admin')
+      await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+      const headings = Array.from(document.querySelectorAll('fieldset.panel h3, fieldset.panel legend')).map((h) => h.textContent)
+      const order = ['1 · Event details', '2 · Course', '3 · Aid stations', '4 · Sweep teams', 'Share', '5 · Offline maps']
+      for (const t of order) expect(headings).toContain(t)
+      for (let i = 1; i < order.length; i++) expect(headings.indexOf(order[i])).toBeGreaterThan(headings.indexOf(order[i - 1]))
+    })
   })
 
   describe('aid stations', () => {
@@ -344,12 +452,16 @@ Yes/Yes
       expect(screen.getByLabelText('Where Sweep 2 starts')).toHaveValue('999') // not a stop: kept as it was
       expect(within(screen.getByLabelText('Where Sweep 2 starts')).getByRole('option', { name: 'Starts at mi 0.6 (not a stop)' })).toBeInTheDocument()
       await u.selectOptions(screen.getByLabelText('Where Sweep 2 starts'), '')
-      fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '13:30' } })
-      await u.click(screen.getByRole('button', { name: 'Save event' }))
+      await u.click(screen.getByRole('button', { name: 'Save teams' }))
       const sent = update.mock.calls[0][1]
-      expect(sent.startTime).toBe('13:30')
       expect(sent.trackers?.[0].startM).toBeCloseTo(10.4 * M, 0)
       expect(sent.trackers?.[1].startM).toBeUndefined()
+      expect(sent.startTime).toBe('12:00') // the saved start time: not whatever is being edited above
+      expect(await screen.findByRole('status')).toHaveTextContent('Teams saved')
+      fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '13:30' } })
+      await u.click(screen.getByRole('button', { name: 'Save details' }))
+      expect(update.mock.calls[1][1].startTime).toBe('13:30')
+      expect(update.mock.calls[1][1].trackers?.[0].startM).toBeUndefined() // the saved teams, not the unsaved choice
     })
 
     it('offers the event file and a spreadsheet of the aid stations to share', async () => {
@@ -412,7 +524,8 @@ Yes/Yes
     await u.type(screen.getByLabelText('New tracker name'), 'sw2')
     await u.click(screen.getByRole('button', { name: 'Add' }))
     expect(screen.getByRole('alert')).toHaveTextContent('sw2 is already on this event')
-    await u.click(screen.getByRole('button', { name: 'Save event' }))
+    await u.click(screen.getByRole('button', { name: 'Save teams' }))
+    expect(update.mock.calls[0][1]).toMatchObject({ name: 'Test 50K', startTime: '' }) // the saved details, not edits to them
     expect(update.mock.calls[0][1].trackers).toEqual([
       { trackerName: 'sw2', label: 'sw2', color: '#00ff00' },
       { trackerName: 'Sweep9', label: 'Sweep9', color: '' },

@@ -4,7 +4,8 @@ import { api } from '../api'
 import { AppHeader } from '../AppHeader'
 import { EventEditor } from '../EventEditor'
 import { MapsPanel } from '../MapsPanel'
-import type { KnownTracker, SweepEvent } from '../types'
+import { SetupGuide } from '../SetupGuide'
+import type { KnownTracker, MapsInfo, SweepEvent } from '../types'
 
 export function AdminPage() {
   const [events, setEvents] = useState<SweepEvent[]>([])
@@ -13,6 +14,8 @@ export function AdminPage() {
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string>()
   const [deleting, setDeleting] = useState<SweepEvent>()
+  const [tileCount, setTileCount] = useState<number>()
+  const onMaps = useCallback((m: MapsInfo) => setTileCount(m.layers.reduce((n, l) => n + l.tileCount, 0)), [])
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +36,8 @@ export function AdminPage() {
       <AppHeader />
       <h1>Admin</h1>
       {error && <p role="alert" className="error">{error}</p>}
+
+      <SetupGuide event={current} known={known} tileCount={tileCount} />
 
       <fieldset className="panel">
         <legend>Events</legend>
@@ -76,7 +81,7 @@ export function AdminPage() {
 
       {current && <EventEditor key={current.id + current.updatedAt} event={current} known={known}
         onChange={(e) => setEvents(events.map((x) => (x.id === e.id ? e : x)))} />}
-      <MapsPanel eventId={selected} />
+      <MapsPanel eventId={selected} onInfo={onMaps} />
 
       {deleting && (
         <div className="modal-backdrop">

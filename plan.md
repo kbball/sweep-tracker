@@ -11,5 +11,4 @@ Completed work is in CHANGELOG.md; this file holds only what remains.
 - [ ] CI workflow running both coverage gates
 
 ## Backlog
-- [ ] Admin: setup guide walking through the order of operations
 - [ ] New-user walkthrough
