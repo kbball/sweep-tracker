@@ -11,6 +11,5 @@ Completed work is in CHANGELOG.md; this file holds only what remains.
 - [ ] CI workflow running both coverage gates
 
 ## Backlog
-- [ ] Aid station (AS) info upload (e.g. CSV) matched to the AS waypoints in the GPX: cutoff times, distance to next aid station
 - [ ] Admin: setup guide walking through the order of operations
 - [ ] New-user walkthrough

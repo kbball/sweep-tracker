@@ -192,3 +192,23 @@ label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
 .glyph { width: 1.15em; height: 1.15em; flex: none; }
 .stat { display: inline-flex; align-items: center; gap: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Aid station table */
+.stops-scroll { overflow-x: auto; margin: 8px 0 12px; border: 1px solid var(--border); border-radius: 12px; }
+table.stops { border-collapse: collapse; width: 100%; font-size: .85rem; }
+table.stops th { text-align: left; padding: 8px; font-weight: 600; color: var(--text-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.stops td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.stops tr:last-child td { border-bottom: 0; }
+table.stops tr.off td { opacity: .55; }
+table.stops input:not([type='checkbox']) { width: 100%; min-width: 7rem; padding: .3rem .45rem; font-size: .85rem; }
+table.stops input.num { min-width: 4rem; max-width: 5rem; }
+table.stops input.crew { min-width: 6rem; }
+table.stops input.bad { border-color: var(--bad); }
+table.stops input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--accent); }
+details.paste { margin: 8px 0; padding: 8px 12px; border: 1px dashed var(--border); border-radius: 12px; }
+details.paste summary { cursor: pointer; font-weight: 600; }
+details.paste textarea { width: 100%; min-height: 8rem; font-family: ui-monospace, monospace; font-size: .8rem; }
+.notes { margin: 8px 0 0; padding-left: 1.2rem; color: var(--warn); font-size: .85rem; }
+.team-next { font-size: .8rem; color: var(--text-2); }
+.team-row select { flex: 1 1 14rem; min-width: 12rem; }
+.sweep .team-next { display: block; padding: 0 12px 10px; }

@@ -4,10 +4,12 @@ import { api } from '../api'
 import { courseStats, teamProgress } from '../course'
 import { CourseStrip } from '../CourseStrip'
 import { lastFix } from '../format'
+import { formatClock } from '../handbook'
 import { SweepMap } from '../SweepMap'
 import type { Focus } from '../SweepMap'
 import { SweepPanel } from '../SweepPanel'
 import { ThemeToggle } from '../ThemeToggle'
+import { raceStart } from '../stops'
 import { HISTORY, useLive } from '../useLive'
 import type { MapLayer } from '../types'
 
@@ -22,6 +24,8 @@ export function MapPage() {
   const [focus, setFocus] = useState<Focus>()
 
   const stats = useMemo(() => (event?.course ? courseStats(event.course) : null), [event?.course])
+  const start = event ? raceStart(event.date, event.startTime) : undefined
+  const cutoffLabel = useMemo(() => (start ? (h: number) => formatClock(h, start) : undefined), [start?.weekday, start?.minutes]) // eslint-disable-line react-hooks/exhaustive-deps
   // Reports from well before the event date belong to an earlier run of the same tracker.
   const since = event ? new Date(event.date).getTime() - 12 * 3600_000 : undefined
   const progress = useMemo(() => (stats ? teamProgress(stats, tracks, since) : undefined), [stats, tracks, since])
@@ -66,7 +70,7 @@ export function MapPage() {
           </span>
         </header>
         {!event.course && <p className="muted">No course loaded. Upload a GPX in <Link to="/admin">Admin</Link>.</p>}
-        <SweepPanel tracks={recent} now={now} progress={progress} selected={selected} onSelect={select} />
+        <SweepPanel tracks={recent} now={now} progress={progress} stats={stats} cutoffLabel={cutoffLabel} selected={selected} onSelect={select} />
       </section>
 
       <CourseStrip stats={stats} tracks={recent} progress={progress} />

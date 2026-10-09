@@ -197,3 +197,80 @@ describe('teamProgress', () => {
     expect(onEitherLeg(teamProgress(stats, [team([pos(1, { lat: 0.02, lon: 0.02 })])]).sw1)).toBe(true)
   })
 })
+
+describe('official miles and the next stop', () => {
+  const M = 1609.344
+  // A short course whose GPX distances (10 and 20 miles) differ from the handbook's (10.5 and 21).
+  const track = Array.from({ length: 41 }, (_, i) => ({ lat: (i * M * 0.5) / 111_195, lon: 0 })) // 20 miles north
+  const pass = (distMiles: number, extra = {}) => ({ distM: distMiles * M, use: true, ...extra })
+  const stats = (passes: ReturnType<typeof pass>[][]) => courseStats({
+    name: 'X', distanceM: 0, track,
+    waypoints: passes.map((p, i) => ({ name: `S${i + 1}`, lat: 0, lon: 0, passes: p })),
+  })!
+
+  it('interpolates the mile between stops that have official miles', () => {
+    const s = stats([[pass(0, { mile: 0 })], [pass(10, { mile: 10.5, cutoffHours: 4 })], [pass(20, { mile: 21 })]])
+    expect(s.mileAt(0)).toBeCloseTo(0)
+    expect(s.mileAt(5 * M)).toBeCloseTo(5.25)
+    expect(s.mileAt(10 * M)).toBeCloseTo(10.5)
+    expect(s.mileAt(15 * M)).toBeCloseTo(15.75)
+    expect(s.mileAt(20 * M)).toBeCloseTo(21)
+    expect(s.mileAt(21 * M)).toBeCloseTo(22) // past the last stop: its mile plus the extra distance
+  })
+  it('measures before the first stop back from its mile, never below zero', () => {
+    const s = stats([[pass(2, { mile: 2.5 })], [pass(10, { mile: 10.5 })]])
+    expect(s.mileAt(1 * M)).toBeCloseTo(1.5)
+    expect(s.mileAt(0)).toBeCloseTo(0.5)
+    const s2 = stats([[pass(0.5, { mile: 0.2 })], [pass(10, { mile: 10.5 })]])
+    expect(s2.mileAt(0)).toBe(0)
+  })
+  it('uses the GPX distance when fewer than two stops have an official mile', () => {
+    expect(stats([[pass(10, { mile: 10.5 })], [pass(20)]]).mileAt(5 * M)).toBeCloseTo(5)
+    expect(stats([[pass(10)], [pass(20)]]).mileAt(12 * M)).toBeCloseTo(12)
+  })
+  it('handles two stops at the same distance', () => {
+    const s = stats([[pass(5, { mile: 5 })], [pass(5, { mile: 5.1 })], [pass(10, { mile: 10 })]])
+    expect(Number.isFinite(s.mileAt(5 * M))).toBe(true)
+  })
+
+  it('finds the next stop and the miles to it', () => {
+    const s = stats([[pass(0, { mile: 0 })], [pass(10, { mile: 10.5, cutoffHours: 4 })], [pass(20, { mile: 21 })]])
+    const n = s.nextStop(5 * M)!
+    expect(n.stop.name).toBe('S2')
+    expect(n.stop.cutoffHours).toBe(4)
+    expect(n.miles).toBeCloseTo(5.25) // official miles, not GPX miles
+    expect(s.nextStop(10 * M)!.stop.name).toBe('S3') // at a stop, the next one is the one after
+    expect(s.nextStop(10 * M - 20)!.stop.name).toBe('S3') // within 50 m counts as being at it
+    expect(s.nextStop(10 * M - 200)!.stop.name).toBe('S2')
+    expect(s.nextStop(20 * M)).toBeUndefined() // nothing after the finish
+  })
+  it('measures the miles to the next stop from the GPX when there are no official miles', () => {
+    expect(stats([[pass(10)], [pass(20)]]).nextStop(2 * M)!.miles).toBeCloseTo(8)
+  })
+  it('names stops from the organiser\'s label, and keeps pacer and crew details', () => {
+    const s = stats([[pass(10, { label: 'Finish Loop #4', pacer: true, crew: 'Yes/Yes' })]])
+    expect(s.stops[0]).toMatchObject({ name: 'Finish Loop #4', pacer: true, crew: 'Yes/Yes' })
+  })
+})
+
+describe('a team that starts part-way along the course', () => {
+  const stats = courseStats(course())!
+  const at = (id: number, lat: number, minutes: number) =>
+    pos(id, { lat, lon: 0, time: new Date(Date.UTC(2026, 9, 10, 8, minutes)).toISOString() })
+
+  it('is only placed from its start onwards, even on its first report', () => {
+    // One report on the road, which runs both out and back: with a start on the way back, it is the way back.
+    const fromHalfway = { ...track(), startM: total / 2 + 100, positions: [at(1, 0.02, 0)] }
+    expect(teamProgress(stats, [fromHalfway]).sw1).toBeCloseTo(total - 2224, -1)
+    const fromStart = { ...track(), positions: [at(1, 0.02, 0)] }
+    expect(teamProgress(stats, [fromStart]).sw1).toBeCloseTo(2224, -1)
+  })
+  it('allows for a little slack before the start', () => {
+    const t = { ...track(), startM: 2224 + 200, positions: [at(1, 0.02, 0)] } // 200 m beyond the pass: still within the slack
+    expect(teamProgress(stats, [t]).sw1).toBeCloseTo(2224, -1)
+  })
+  it('keeps every candidate when none is at or after the start', () => {
+    const t = { ...track(), startM: total * 2, positions: [at(1, 0.02, 0)] }
+    expect(Number.isFinite(teamProgress(stats, [t]).sw1)).toBe(true)
+  })
+})

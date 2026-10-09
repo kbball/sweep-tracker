@@ -109,3 +109,25 @@ func TestPointAt(t *testing.T) {
 		t.Fatalf("zero-length segment: %+v", p)
 	}
 }
+
+func TestEventValidateStartTimeAndTeamStart(t *testing.T) {
+	good := &Event{Name: "R", StartTime: "12:00"}
+	if err := good.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&Event{Name: "R"}).Validate(); err != nil {
+		t.Fatal("a start time is optional")
+	}
+	for _, bad := range []string{"noon", "25:00", "12:60", "9"} {
+		if err := (&Event{Name: "R", StartTime: bad}).Validate(); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%q should be invalid", bad)
+		}
+	}
+	neg, ok := -5.0, 120.0
+	if err := (&Event{Name: "R", Trackers: []EventTracker{{TrackerName: "a", StartM: &neg}}}).Validate(); !errors.Is(err, ErrInvalid) {
+		t.Fatal("a team can't start before the course")
+	}
+	if err := (&Event{Name: "R", Trackers: []EventTracker{{TrackerName: "a", StartM: &ok}}}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -134,6 +134,33 @@ func TestSimulateStartMile(t *testing.T) {
 	}
 }
 
+func TestSimulateStartsEachTeamWhereTheEventSays(t *testing.T) {
+	broker := startBroker(t)
+	ev := simEvent()
+	far := 900.0 // metres along the ~1.1 km course
+	ev.Trackers = []domain.EventTracker{{TrackerName: "Early"}, {TrackerName: "Late", StartM: &far}}
+	srv := eventServer(t, ev)
+	var out bytes.Buffer
+	err := run(context.Background(), []string{"simulate", "--event", "e1", "--server", srv.URL, "--interval", "1ms", "--speedup", "36000"},
+		envMap(map[string]string{"SWEEP_MQTT_BROKER": broker}), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lat := map[string]float64{}
+	for _, l := range strings.Split(out.String(), "\n") {
+		if name, rest, ok := strings.Cut(l, ": "); ok && lat[name] == 0 {
+			var f float64
+			if _, err := fmt.Sscanf(rest, "%f,", &f); err == nil {
+				lat[name] = f
+			}
+		}
+	}
+	// "Late" starts most of the way along; "Early" starts at the beginning (latitude 40).
+	if !(lat["Early"] > 0 && lat["Early"] < 40.003 && lat["Late"] > 40.006) {
+		t.Fatalf("first reports: %+v\n%s", lat, out.String())
+	}
+}
+
 func TestSimulateErrors(t *testing.T) {
 	broker := startBroker(t)
 	srv := eventServer(t, simEvent())

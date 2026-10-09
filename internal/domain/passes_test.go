@@ -80,20 +80,99 @@ func TestManyPassesDefaultToFirstAndLast(t *testing.T) {
 	}
 }
 
-func TestSetPassUse(t *testing.T) {
-	c := outAndBack()
-	if err := c.SetPassUse([][]bool{{true, false}, {true}, {true}}); err != nil {
-		t.Fatal(err)
+func TestSetStopsAndOrder(t *testing.T) {
+	c := outAndBack() // Aid 1 twice, Turnaround once, Far away once (4 passes)
+	order := c.OrderedPasses()
+	if len(order) != 0 {
+		t.Fatal("no passes until they are detected")
 	}
-	if c.Waypoints[0].Passes[1].Use {
-		t.Fatal("second pass should be switched off")
+	c.EnsurePasses()
+	order = c.OrderedPasses()
+	if len(order) != 4 {
+		t.Fatalf("passes: %d", len(order))
 	}
-	for _, bad := range [][][]bool{{{true}}, {{true, false}, {true, true}, {true}}, nil} {
-		if err := c.SetPassUse(bad); !errors.Is(err, ErrInvalid) {
-			t.Fatalf("%v should be invalid", bad)
+	for i := 1; i < len(order); i++ {
+		if order[i].DistM < order[i-1].DistM {
+			t.Fatal("passes must be in course order")
 		}
 	}
-	if err := (*Course)(nil).SetPassUse(nil); !errors.Is(err, ErrInvalid) {
+	mile, cut := 3.2, 1.0
+	in := []StopInput{
+		{Use: true, Label: " Powerlines ", Mile: &mile, CutoffHours: &cut, Pacer: true, Crew: " Yes/Yes "},
+		{Use: true}, {Use: false, Label: "x"}, {Use: true},
+	}
+	if err := c.SetStops(in); err != nil {
+		t.Fatal(err)
+	}
+	first := order[0]
+	if first.Label != "Powerlines" || first.Mile == nil || *first.Mile != 3.2 || *first.CutoffHours != 1 || !first.Pacer || first.Crew != "Yes/Yes" {
+		t.Fatalf("details not stored (and trimmed): %+v", first)
+	}
+	if order[2].Use || order[2].Label != "x" {
+		t.Fatalf("use flag / label: %+v", order[2])
+	}
+	// Wrong number of stops, out-of-range values and over-long text are rejected without changing anything.
+	neg, huge := -1.0, 5000.0
+	for name, bad := range map[string][]StopInput{
+		"count":  in[:2],
+		"mile":   {{Mile: &neg}, {}, {}, {}},
+		"mile2":  {{Mile: &huge}, {}, {}, {}},
+		"cutoff": {{CutoffHours: &neg}, {}, {}, {}},
+		"label":  {{Label: string(make([]byte, 200))}, {}, {}, {}},
+	} {
+		if err := c.SetStops(bad); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s should be invalid: %v", name, err)
+		}
+	}
+	if order[0].Label != "Powerlines" {
+		t.Fatal("a rejected update must not change anything")
+	}
+	if err := (*Course)(nil).SetStops(nil); !errors.Is(err, ErrInvalid) {
 		t.Fatal("nil course")
 	}
+	if (*Course)(nil).OrderedPasses() != nil {
+		t.Fatal("nil course has no passes")
+	}
+}
+
+func TestCarryOverKeepsDetailsOfMatchingWaypoints(t *testing.T) {
+	old := outAndBack()
+	old.EnsurePasses()
+	mile := 3.2
+	old.Waypoints[0].Passes[0].Mile = &mile
+	old.Waypoints[0].Passes[0].Label = "Powerlines out"
+	old.Waypoints[0].Passes[1].Use = false
+	old.Waypoints[1].Passes[0].Crew = "Yes/Yes"
+
+	fresh := outAndBack()
+	fresh.Waypoints[2].Name = "Renamed" // no match: starts from the detected defaults
+	fresh.CarryOver(old)
+	a := fresh.Waypoints[0].Passes
+	if a[0].Label != "Powerlines out" || a[0].Mile == nil || *a[0].Mile != 3.2 || a[1].Use {
+		t.Fatalf("details should carry over: %+v", a)
+	}
+	if fresh.Waypoints[1].Passes[0].Crew != "Yes/Yes" {
+		t.Fatal("single-pass waypoint should carry over too")
+	}
+	if fresh.Waypoints[2].Passes[0].Label != "" || !fresh.Waypoints[2].Passes[0].Use {
+		t.Fatalf("renamed waypoint must start fresh: %+v", fresh.Waypoints[2].Passes)
+	}
+	// Positions come from the new track, not the old one.
+	moved := outAndBack()
+	for i := range moved.Track {
+		moved.Track[i].Lat += 0.0001
+	}
+	moved.CarryOver(old)
+	if moved.Waypoints[0].Passes[0].Label != "Powerlines out" {
+		t.Fatal("still carried over")
+	}
+	// A different number of passes is a different waypoint: nothing is carried over.
+	few := outAndBack()
+	few.Track = few.Track[:51] // only the way out
+	few.CarryOver(old)
+	if few.Waypoints[0].Passes[0].Label != "" {
+		t.Fatalf("pass counts differ, so nothing should carry over: %+v", few.Waypoints[0].Passes)
+	}
+	(*Course)(nil).CarryOver(old)
+	fresh.CarryOver(nil)
 }

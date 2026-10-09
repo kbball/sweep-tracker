@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api } from './api'
+import { courseStats } from './course'
 import { metersToMiles } from './format'
-import type { EventTracker, KnownTracker, SweepEvent } from './types'
+import { StopsEditor } from './StopsEditor'
+import { aidStationsCsv, fileSlug } from './stops'
+import type { EventTracker, KnownTracker, StopInput, SweepEvent } from './types'
 
 interface Props {
   event: SweepEvent
@@ -15,7 +18,12 @@ export function EventEditor({ event, known, onChange }: Props) {
   const [notes, setNotes] = useState(event.notes)
   const [trackers, setTrackers] = useState<EventTracker[]>(event.trackers)
   const [newTracker, setNewTracker] = useState('')
-  const [passUse, setPassUse] = useState<boolean[][]>(() => (event.course?.waypoints ?? []).map((w) => (w.passes ?? []).map((p) => p.use)))
+  const [startTime, setStartTime] = useState(event.startTime ?? '')
+  // Where a team can start from: the stops as last saved.
+  const startOptions = useMemo(() => {
+    const stats = event.course ? courseStats(event.course) : null
+    return stats ? stats.stops.map((s) => ({ value: s.distM, text: `${s.name} · mi ${(s.mile ?? stats.mileAt(s.distM)).toFixed(1)}` })) : []
+  }, [event.course])
   const [msg, setMsg] = useState<string>()
   const [error, setError] = useState<string>()
 
@@ -31,14 +39,24 @@ export function EventEditor({ event, known, onChange }: Props) {
     setError(undefined)
     setTrackers([...trackers, { trackerName: n, label: n, color: '' }])
   }
-  const togglePass = (i: number, j: number) => setPassUse(passUse.map((row, a) => (a === i ? row.map((u, b) => (b === j ? !u : u)) : row)))
+  const saveStops = (stops: StopInput[]) => run(async () => {
+    // The cutoffs only read as clock times with the start time, so save a changed one with them
+    // (and nothing else that is still being edited).
+    if (startTime !== (event.startTime ?? '')) {
+      await api.updateEvent(event.id, { name: event.name, date: event.date, startTime, notes: event.notes, trackers: event.trackers })
+    }
+    return api.setStops(event.id, stops)
+  }, 'Aid stations saved')
   const unassigned = known.filter((k) => !trackers.some((t) => t.trackerName === k.name))
 
   return (
     <fieldset className="panel">
       <legend>Event</legend>
       <label>Name <input value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <label>Date <input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <div className="row">
+        <label>Date <input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+        <label>Start time <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+      </div>
       <label>Notes <textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
 
       <h3>Sweep teams</h3>
@@ -47,6 +65,12 @@ export function EventEditor({ event, known, onChange }: Props) {
           <code>{t.trackerName}</code>
           <input aria-label={`Label for ${t.trackerName}`} value={t.label} onChange={(e) => patch(i, { label: e.target.value })} />
           <input aria-label={`Color for ${t.trackerName}`} type="color" value={t.color || '#e6194b'} onChange={(e) => patch(i, { color: e.target.value })} />
+          <select aria-label={`Where ${t.label || t.trackerName} starts`} value={t.startM === undefined ? '' : String(t.startM)}
+            onChange={(e) => patch(i, { startM: e.target.value === '' ? undefined : Number(e.target.value) })}>
+            <option value="">Starts at the start of the course</option>
+            {t.startM !== undefined && !startOptions.some((o) => o.value === t.startM) && <option value={String(t.startM)}>Starts at mi {metersToMiles(t.startM).toFixed(1)} (not a stop)</option>}
+            {startOptions.map((o, k) => <option key={k} value={String(o.value)}>Starts at {o.text}</option>)}
+          </select>
           <button type="button" className="ghost" onClick={() => setTrackers(trackers.filter((_, j) => j !== i))}>Remove</button>
         </div>
       ))}
@@ -62,7 +86,7 @@ export function EventEditor({ event, known, onChange }: Props) {
       </form>
       <p className="muted">The name must match what the tracker sends (e.g. <code>Sweep1</code>); it starts reporting once heard on the mesh.</p>
 
-      <button type="button" className="primary save" onClick={() => run(() => api.updateEvent(event.id, { name, date: new Date(date).toISOString(), notes, trackers }), 'Saved')}>
+      <button type="button" className="primary save" onClick={() => run(() => api.updateEvent(event.id, { name, date: new Date(date).toISOString(), startTime, notes, trackers }), 'Saved')}>
         Save event
       </button>
 
@@ -74,32 +98,20 @@ export function EventEditor({ event, known, onChange }: Props) {
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => api.uploadCourse(event.id, f), 'Course uploaded') }} /></label>
 
       {event.course && event.course.waypoints.length > 0 && (
-        <>
-          <h3>Aid stations</h3>
-          <p className="muted">Where the course goes by each aid station. An out-and-back course passes a station twice; untick passes that are just the trail running close by.</p>
-          {event.course.waypoints.map((w, i) => {
-            const passes = w.passes ?? []
-            return (
-              <div className="station" key={`${w.name}-${i}`}>
-                <strong>{w.name || 'Waypoint'}</strong>
-                {passes.length > 2 && <span className="chip warn">Review</span>}
-                <span className="passes">
-                  {passes.map((p, j) => (
-                    <label className="check" key={j}>
-                      <input type="checkbox" checked={passUse[i]?.[j] ?? false} onChange={() => togglePass(i, j)}
-                        aria-label={`${w.name || 'Waypoint'} at mile ${metersToMiles(p.distM).toFixed(1)}`} />
-                      mi {metersToMiles(p.distM).toFixed(1)}
-                    </label>
-                  ))}
-                </span>
-              </div>
-            )
-          })}
-          <button type="button" className="primary save" onClick={() => run(() => api.setPasses(event.id, passUse), 'Aid stations saved')}>Save aid stations</button>
-        </>
+        <StopsEditor course={event.course} date={date} startTime={startTime} onStartTime={setStartTime} onSave={saveStops} />
       )}
 
-      <p><a className="btn" href={api.exportUrl(event.id)} download>Export event to share</a></p>
+      <h3>Share</h3>
+      <p className="muted">Send the event to someone else, or get the aid station table into a spreadsheet.</p>
+      <div className="row">
+        <a className="btn" href={api.exportUrl(event.id)} download>Event file (.sweep.json)</a>
+        {event.course && (
+          <a className="btn" href={`data:text/csv;charset=utf-8,${encodeURIComponent(aidStationsCsv(event))}`} download={`${fileSlug(event.name)}-aid-stations.csv`}>
+            Aid station table (CSV)
+          </a>
+        )}
+      </div>
+      <p className="muted">The event file holds the course, aid stations, teams and start time. Import it from the Events panel on another instance.</p>
       {msg && <p role="status" className="notice">{msg}</p>}
       {error && <p role="alert" className="error">{error}</p>}
     </fieldset>

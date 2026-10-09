@@ -1,9 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { CourseStats } from './course'
-import { metersToMiles } from './format'
 import type { TrackerHistory } from './types'
 
-const mi = (m: number) => metersToMiles(m).toFixed(1)
 
 interface Label { text: string; from: number; width: number; style: CSSProperties; row: number }
 
@@ -34,7 +32,7 @@ export function CourseStrip({ stats, tracks, progress }: { stats?: CourseStats |
   const labels: Label[] = []
   const rowEnd = [-100, -100]
   stats.stops.forEach((st, i) => {
-    const text = `${st.name} · mi ${mi(st.distM)}`
+    const text = `${st.name} · mi ${(st.mile ?? stats.mileAt(st.distM)).toFixed(1)}`
     const l = place(text, pct(st.distM))
     const row = [i % 2, (i + 1) % 2].find((r) => l.from >= rowEnd[r] + 1)
     if (row === undefined) return
@@ -49,7 +47,7 @@ export function CourseStrip({ stats, tracks, progress }: { stats?: CourseStats |
     <section className="strip card" aria-label="Course progress">
       <div className="strip-head">
         <strong>Course progress</strong>
-        <span className="muted">{mi(stats.totalM)} mi</span>
+        <span className="muted">{stats.mileAt(stats.totalM).toFixed(1)} mi</span>
       </div>
       <svg viewBox="0 0 1000 70" preserveAspectRatio="none" role="img" aria-label="Elevation profile of the course">
         {path ? <><path d={path} className="profile-fill" /><path d={line} className="profile-line" vectorEffect="non-scaling-stroke" /></>
@@ -59,7 +57,7 @@ export function CourseStrip({ stats, tracks, progress }: { stats?: CourseStats |
       <div className="strip-labels">
         {labels.map((l, i) => <span key={i} className={`row${l.row}`} style={l.style}>{l.text}</span>)}
         {teams.map(({ t, d }) => {
-          const l = place(`▲ ${t.label} mi ${mi(d)}`, pct(d))
+          const l = place(`▲ ${t.label} mi ${stats.mileAt(d).toFixed(1)}`, pct(d))
           return <span key={t.trackerName} className="strip-team" style={{ ...l.style, color: t.color }}>{l.text}</span>
         })}
       </div>

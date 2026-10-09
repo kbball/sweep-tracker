@@ -191,29 +191,46 @@ func TestEventsLifecycle(t *testing.T) {
 	}
 }
 
-func TestAidStationPasses(t *testing.T) {
+func TestAidStationStops(t *testing.T) {
 	ctx := context.Background()
 	s, repo := newEvents()
-	e, _ := s.Create(ctx, &domain.Event{Name: "Race"})
-	if _, err := s.SetPasses(ctx, e.ID, [][]bool{{true}}); !errors.Is(err, domain.ErrInvalid) {
+	e, _ := s.Create(ctx, &domain.Event{Name: "Race", StartTime: "12:00"})
+	if _, err := s.SetStops(ctx, e.ID, []domain.StopInput{{Use: true}}); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatal("no course yet")
 	}
-	if _, err := s.SetPasses(ctx, "nope", nil); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := s.SetStops(ctx, "nope", nil); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal("missing event")
 	}
 	got, err := s.SetCourse(ctx, e.ID, strings.NewReader(sampleGPX))
 	if err != nil || len(got.Course.Waypoints[0].Passes) != 1 || !got.Course.Waypoints[0].Passes[0].Use {
 		t.Fatalf("passes are detected on upload: %v %+v", err, got.Course)
 	}
-	if _, err = s.SetPasses(ctx, e.ID, [][]bool{{true, true}}); !errors.Is(err, domain.ErrInvalid) {
-		t.Fatal("wrong number of flags")
+	if _, err = s.SetStops(ctx, e.ID, []domain.StopInput{{}, {}}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal("wrong number of stops")
 	}
-	upd, err := s.SetPasses(ctx, e.ID, [][]bool{{false}})
-	if err != nil || upd.Course.Waypoints[0].Passes[0].Use {
+	mile, cut := 12.5, 6.0
+	upd, err := s.SetStops(ctx, e.ID, []domain.StopInput{{Use: true, Label: "Aid 1", Mile: &mile, CutoffHours: &cut, Pacer: true, Crew: "Yes/Yes"}})
+	if err != nil || upd.Course.Waypoints[0].Passes[0].Label != "Aid 1" {
 		t.Fatalf("%v %+v", err, upd)
 	}
-	if g, _ := s.Get(ctx, e.ID); g.Course.Waypoints[0].Passes[0].Use {
-		t.Fatal("the choice must be stored")
+	if g, _ := s.Get(ctx, e.ID); *g.Course.Waypoints[0].Passes[0].CutoffHours != 6 || g.StartTime != "12:00" {
+		t.Fatal("the details must be stored")
+	}
+
+	// Re-uploading a corrected GPX keeps the organiser's stop details.
+	again, err := s.SetCourse(ctx, e.ID, strings.NewReader(sampleGPX))
+	if err != nil || again.Course.Waypoints[0].Passes[0].Label != "Aid 1" || again.Course.Waypoints[0].Passes[0].Mile == nil {
+		t.Fatalf("details should survive a re-upload: %v %+v", err, again.Course.Waypoints[0].Passes)
+	}
+
+	// Editing the event keeps the course and updates the start time and each team's start.
+	start := 1200.0
+	up, err := s.Update(ctx, e.ID, &domain.Event{Name: "Race", StartTime: "13:30", Trackers: []domain.EventTracker{{TrackerName: "a", StartM: &start}}})
+	if err != nil || up.StartTime != "13:30" || *up.Trackers[0].StartM != 1200 || up.Course == nil {
+		t.Fatalf("%v %+v", err, up)
+	}
+	if _, err = s.Update(ctx, e.ID, &domain.Event{Name: "Race", StartTime: "later"}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal("bad start time")
 	}
 
 	// A course stored before passes existed gets them when read, and keeps them when edited.

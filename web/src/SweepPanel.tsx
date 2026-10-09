@@ -1,3 +1,4 @@
+import type { CourseStats } from './course'
 import { ageLabel, fadeOpacity, metersToMiles, sweepState } from './format'
 import type { SweepState } from './format'
 import { useState } from 'react'
@@ -14,12 +15,16 @@ interface Props {
   now: number
   /** Metres along the course of each team, by tracker name. */
   progress?: Record<string, number>
+  /** The course, for official miles and the next stop. */
+  stats?: CourseStats | null
+  /** Shows a cutoff (hours after the start) as a clock time. */
+  cutoffLabel?: (hours: number) => string
   /** Tracker name of the expanded team; defaults to the first. */
   selected?: string
   onSelect?: (trackerName: string) => void
 }
 
-export function SweepPanel({ tracks, now, progress, selected, onSelect }: Props) {
+export function SweepPanel({ tracks, now, progress, stats, cutoffLabel, selected, onSelect }: Props) {
   const [showReports, setShowReports] = useState<Record<string, boolean>>({})
   if (tracks.length === 0) return <p className="muted">No sweep teams assigned to this event.</p>
   const open = selected ?? tracks[0].trackerName
@@ -41,7 +46,7 @@ export function SweepPanel({ tracks, now, progress, selected, onSelect }: Props)
               </span>
               {latest && (
                 <span className="team-meta">
-                  {dist != null && <span>Mile {metersToMiles(dist).toFixed(1)}</span>}
+                  {dist != null && <span>Mile {(stats ? stats.mileAt(dist) : metersToMiles(dist)).toFixed(1)}</span>}
                   {latest.batteryV != null && (
                     <span className="stat" title="Battery voltage"><Battery4BarIcon /><span className="sr-only">Battery </span>{latest.batteryV.toFixed(2)} V</span>
                   )}
@@ -54,6 +59,15 @@ export function SweepPanel({ tracks, now, progress, selected, onSelect }: Props)
                 </span>
               )}
             </button>
+            {dist != null && stats?.nextStop(dist) && (() => {
+              const next = stats.nextStop(dist)!
+              return (
+                <span className="team-next">
+                  Next: <strong>{next.stop.name}</strong> · {next.miles.toFixed(1)} mi
+                  {next.stop.cutoffHours !== undefined && ` · cutoff ${cutoffLabel ? cutoffLabel(next.stop.cutoffHours) : `+${next.stop.cutoffHours} h`}`}
+                </span>
+              )
+            })()}
             {expanded && t.positions.length > 0 && (
               <>
                 <button type="button" className="history-toggle" aria-expanded={!!showReports[t.trackerName]} aria-controls={`reports-${t.trackerName}`}

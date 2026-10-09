@@ -1,4 +1,4 @@
-import type { AppConfig, KnownTracker, MapsInfo, RefreshStatus, SweepEvent, TrackerHistory } from './types'
+import type { AppConfig, KnownTracker, MapsInfo, RefreshStatus, StopInput, SweepEvent, TrackerHistory } from './types'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message) }
@@ -27,7 +27,7 @@ export const api = {
   updateEvent: (id: string, e: Partial<SweepEvent>) => send<SweepEvent>('PUT', `/api/events/${id}`, e),
   deleteEvent: (id: string) => req<void>('DELETE', `/api/events/${id}`),
   uploadCourse: (id: string, gpx: Blob) => req<SweepEvent>('PUT', `/api/events/${id}/course`, gpx),
-  setPasses: (id: string, use: boolean[][]) => send<SweepEvent>('PUT', `/api/events/${id}/passes`, { use }),
+  setStops: (id: string, stops: StopInput[]) => send<SweepEvent>('PUT', `/api/events/${id}/stops`, { stops }),
   importEvent: (bundle: Blob) => req<SweepEvent>('POST', '/api/events/import', bundle),
   exportUrl: (id: string) => `/api/events/${id}/export`,
   positions: (id: string, history = 10) => req<TrackerHistory[]>('GET', `/api/events/${id}/positions?history=${history}`),

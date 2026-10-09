@@ -109,18 +109,25 @@ func TestEventFlow(t *testing.T) {
 	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/course", "junk")
 	expect(t, c, 400, b)
 
-	// aid station passes
-	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `{"use":[[false]]}`)
+	// aid station stops
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/stops", `{"stops":[{"use":false,"label":"Aid","mile":3.2,"cutoffHours":1,"pacer":true,"crew":"Yes/Yes"}]}`)
 	expect(t, c, 200, b)
-	if !strings.Contains(string(b), `"passes":[{"distM":`) || !strings.Contains(string(b), `"use":false`) {
+	if !strings.Contains(string(b), `"label":"Aid"`) || !strings.Contains(string(b), `"cutoffHours":1`) || !strings.Contains(string(b), `"use":false`) {
 		t.Fatal(string(b))
 	}
-	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `{"use":[[true,true]]}`)
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/stops", `{"stops":[{},{}]}`)
 	expect(t, c, 400, b)
-	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `x`)
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/stops", `x`)
 	expect(t, c, 400, b)
-	c, b = e.do(t, "PUT", "/api/events/nope/passes", `{"use":[]}`)
+	c, b = e.do(t, "PUT", "/api/events/nope/stops", `{"stops":[]}`)
 	expect(t, c, 404, b)
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID, `{"name":"R2","startTime":"12:00","trackers":[{"trackerName":"s1","startM":500}]}`)
+	expect(t, c, 200, b)
+	if !strings.Contains(string(b), `"startTime":"12:00"`) || !strings.Contains(string(b), `"startM":500`) {
+		t.Fatal(string(b))
+	}
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID, `{"name":"R2","startTime":"noon"}`)
+	expect(t, c, 400, b)
 
 	// multipart
 	var buf bytes.Buffer
