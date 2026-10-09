@@ -21,6 +21,7 @@ export interface Position {
   lon: number
   alt?: number
   batteryV?: number
+  sats?: number
   moving: boolean
   time: string
   receivedAt: string

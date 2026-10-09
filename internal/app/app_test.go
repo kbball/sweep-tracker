@@ -23,6 +23,32 @@ const sampleGPX = `<gpx><trk><name>T</name><trkseg>
 <trkpt lat="40" lon="-105"><ele>1000</ele></trkpt><trkpt lat="40.01" lon="-105"/></trkseg></trk>
 <wpt lat="40.005" lon="-105"><name>Aid 1</name></wpt></gpx>`
 
+func TestParseSatellites(t *testing.T) {
+	now := time.Now()
+	for _, c := range []struct {
+		in   string
+		want int // -1: not reported
+	}{
+		{"Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V mv", 10},
+		{"Sweep1: 33.89057,-84.16948 sats=0 idle", 0},
+		{"Sweep1: no fix (no position yet) sats=3 idle", 3}, // reported with or without a fix
+		{"Sweep1: 33.89057,-84.16948 bat=3.77V mv", -1},
+		{`{"name":"s","lat":1,"lon":1,"sats":7}`, 7},
+		{`{"name":"s","lat":1,"lon":1,"satellites":9}`, 9},
+		{`{"name":"s","lat":1,"lon":1,"sats":-1}`, -1}, // nonsense is ignored, not stored
+		{`{"name":"s","lat":1,"lon":1,"sats":300}`, -1},
+		{`{"name":"s","lat":1,"lon":1}`, -1},
+	} {
+		p, err := app.ParseMessage([]byte(c.in), now)
+		if err != nil {
+			t.Fatalf("%q: %v", c.in, err)
+		}
+		if c.want < 0 && p.Sats != nil || c.want >= 0 && (p.Sats == nil || *p.Sats != c.want) {
+			t.Fatalf("%q: sats = %v, want %d", c.in, p.Sats, c.want)
+		}
+	}
+}
+
 func TestParseMessage(t *testing.T) {
 	cases := []struct {
 		name    string

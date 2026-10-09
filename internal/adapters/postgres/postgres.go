@@ -193,9 +193,9 @@ func (s EventRepo) Delete(ctx context.Context, id string) error {
 
 func (s PositionRepo) Add(ctx context.Context, p *domain.Position) error {
 	return s.pool.QueryRow(ctx, `
-		INSERT INTO positions (tracker_name, has_fix, lat, lon, alt, battery_v, moving, ts, received_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		p.TrackerName, p.HasFix, p.Lat, p.Lon, p.Alt, p.BatteryV, p.Moving, p.Time, p.ReceivedAt).Scan(&p.ID)
+		INSERT INTO positions (tracker_name, has_fix, lat, lon, alt, battery_v, sats, moving, ts, received_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+		p.TrackerName, p.HasFix, p.Lat, p.Lon, p.Alt, p.BatteryV, p.Sats, p.Moving, p.Time, p.ReceivedAt).Scan(&p.ID)
 }
 
 func (s PositionRepo) History(ctx context.Context, names []string, per int) ([]domain.Position, error) {
@@ -203,7 +203,7 @@ func (s PositionRepo) History(ctx context.Context, names []string, per int) ([]d
 		return nil, nil
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, tracker_name, has_fix, lat, lon, alt, battery_v, moving, ts, received_at FROM (
+		SELECT id, tracker_name, has_fix, lat, lon, alt, battery_v, sats, moving, ts, received_at FROM (
 			SELECT *, row_number() OVER (PARTITION BY tracker_name ORDER BY ts DESC, id DESC) AS rn
 			FROM positions WHERE tracker_name = ANY($1)
 		) q WHERE rn <= $2 ORDER BY tracker_name, ts DESC, id DESC`, names, per)
@@ -214,7 +214,7 @@ func (s PositionRepo) History(ctx context.Context, names []string, per int) ([]d
 	var out []domain.Position
 	for rows.Next() {
 		var p domain.Position
-		if err := rows.Scan(&p.ID, &p.TrackerName, &p.HasFix, &p.Lat, &p.Lon, &p.Alt, &p.BatteryV, &p.Moving, &p.Time, &p.ReceivedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.TrackerName, &p.HasFix, &p.Lat, &p.Lon, &p.Alt, &p.BatteryV, &p.Sats, &p.Moving, &p.Time, &p.ReceivedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

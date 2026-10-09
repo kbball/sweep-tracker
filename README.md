@@ -50,7 +50,7 @@ Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V idle   (fix, stopped)
 Sweep1: no fix (no position yet) mv                            (no fix)
 ```
 
-Messages carry no timestamp, so the time received is used. Altitude is kept in feet. Reports without a fix are recorded and listed but can't be placed on the map; the map shows the last known fix. Satellite count is not stored. A JSON object (`name`, `lat`, `lon`, `ts`, `alt`, `bat`, `moving`, `fix`) is also accepted.
+Messages carry no timestamp, so the time received is used. Altitude is kept in feet. Reports without a fix are recorded and listed but can't be placed on the map; the map shows the last known fix. Battery voltage (`bat`) and satellite count (`sats`) are stored and shown. A JSON object (`name`, `lat`, `lon`, `ts`, `alt`, `bat`, `sats`, `moving`, `fix`) is also accepted.
 
 Map data: USGS The National Map (public domain).
 

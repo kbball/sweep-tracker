@@ -69,30 +69,6 @@ function nearestAlong(track: Point[], cum: number[], lat: number, lon: number): 
   return along
 }
 
-/** Compass bearing in degrees (0 = north, clockwise) from a to b. */
-export function bearing(a: Point, b: Point): number {
-  const k = Math.cos(((a.lat + b.lat) / 2) * rad)
-  return (Math.atan2((b.lon - a.lon) * k, b.lat - a.lat) / rad + 360) % 360
-}
-
-/** Smallest angle between two bearings, 0..180. */
-export function angleBetween(a: number, b: number): number {
-  const d = Math.abs(a - b) % 360
-  return d > 180 ? 360 - d : d
-}
-
-/** The point `distM` metres along the track (clamped to its ends). */
-function pointAt(track: Point[], cum: number[], distM: number): Point {
-  if (distM <= 0) return track[0]
-  if (distM >= cum[cum.length - 1]) return track[track.length - 1]
-  let lo = 1, hi = cum.length - 1
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < distM) lo = mid + 1; else hi = mid }
-  const span = cum[lo] - cum[lo - 1]
-  const f = span === 0 ? 0 : (distM - cum[lo - 1]) / span
-  const a = track[lo - 1], b = track[lo]
-  return { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f }
-}
-
 export interface CourseStop { name: string; distM: number }
 export interface CourseStats {
   totalM: number
@@ -102,14 +78,10 @@ export interface CourseStats {
   profile: { d: number; ele: number }[] | null
   /** Every place the course goes by (lat, lon), in metres along it. */
   candidates: (lat: number, lon: number) => number[]
-  /** Which way the course runs at a distance along it (compass bearing, over a short stretch either side). */
-  courseBearing: (distM: number) => number
 }
 
 /** Within this distance of the course a GPS fix counts as being on it. */
 const FIX_RADIUS_M = 100
-/** The stretch of course either side of a point used to work out which way it runs. */
-const BEARING_SPAN_M = 60
 /** A fix this close (along the course) to a pass the organiser unticked is placed on the confirmed pass instead. */
 const UNUSED_PASS_M = 200
 
@@ -148,7 +120,6 @@ export function courseStats(course: Course, maxSamples = 200): CourseStats | nul
   return {
     totalM, stops, profile,
     candidates: (lat, lon) => placeable(passesOf(track, cum, lat, lon, FIX_RADIUS_M)),
-    courseBearing: (d) => bearing(pointAt(track, cum, d - BEARING_SPAN_M), pointAt(track, cum, d + BEARING_SPAN_M)),
   }
 }
 
@@ -164,24 +135,24 @@ function candidatesFor(stats: CourseStats, p: Position): number[] {
 
 /** How far a team may appear to slip back (GPS jitter, a short detour) before that counts as the other leg. */
 const SLACK_M = 300
-/** A team must have moved this far before its direction of travel means anything (below it, GPS noise). */
+/** A team must have moved this far before its earlier position says anything about where it is now (below it, GPS noise). */
 const MIN_MOVE_M = 50
-/** Only movement within this long before the newest fix says which way a team is going. */
-const HEADING_WINDOW_MS = 6 * 3600_000
-/** A pass counts as being in the team's direction of travel within this many degrees. */
-const HEADING_TOLERANCE_DEG = 80
+/** Only movement within this long before the newest fix is used. */
+const LOOKBACK_MS = 6 * 3600_000
 
 /**
  * Metres along the course of each team's newest GPS fix.
  *
  * A course that comes back past the same place (out-and-back, loops) is
- * ambiguous from position alone, so the team's direction of travel decides:
- * its heading over the most recent real movement (at least 50 m within the last
- * 6 hours, so a team resting at an aid station is judged by how it arrived) is
- * compared with the direction the course runs at each place it passes. Teams
- * that haven't moved yet, or whose heading matches none of them, are assumed to
- * keep moving forward along the course. Fixes before `since` (epoch ms) are
- * ignored, so an earlier run with the same tracker doesn't count.
+ * ambiguous from position alone. Teams move forward along the course, so the
+ * team's latest fix is placed at the pass that is the smallest step forward from
+ * where its earlier fix was: a team heading home steps forward along the return
+ * leg, not along the way out. The earlier fix is the most recent one at least
+ * 50 m away within the last 6 hours, so a team resting at an aid station is
+ * judged by how it arrived. A team that hasn't moved yet, or that only moved
+ * backwards along the course, keeps moving forward from the first pass.
+ * Fixes before `since` (epoch ms) are ignored, so an earlier run with the same
+ * tracker doesn't count.
  */
 export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since = -Infinity): Record<string, number> {
   const out: Record<string, number> = {}
@@ -190,7 +161,7 @@ export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since
       .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
     if (fixes.length === 0) continue
 
-    // Without a heading: keep moving forward from the first pass.
+    // Without a clear step: keep moving forward from the first pass.
     let chain: number | undefined
     for (const p of fixes) {
       const c = candidatesFor(stats, p)
@@ -203,14 +174,20 @@ export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since
 
     const latest = fixes[fixes.length - 1]
     const latestAt = new Date(latest.time).getTime()
-    const from = [...fixes].reverse().find((p) => latestAt - new Date(p.time).getTime() <= HEADING_WINDOW_MS && haversine(p, latest) >= MIN_MOVE_M)
-    const candidates = candidatesFor(stats, latest)
+    const earlier = [...fixes].reverse().find((p) => latestAt - new Date(p.time).getTime() <= LOOKBACK_MS && haversine(p, latest) >= MIN_MOVE_M)
+    const here = candidatesFor(stats, latest)
     let at = chain!
-    if (from && candidates.length > 1) {
-      const heading = bearing(from, latest)
-      const matching = candidates.filter((d) => angleBetween(heading, stats.courseBearing(d)) <= HEADING_TOLERANCE_DEG)
-      // Several passes the same way (loops): the one nearest the forward-moving guess.
-      if (matching.length > 0) at = matching.reduce((best, d) => (Math.abs(d - at) < Math.abs(best - at) ? d : best))
+    if (earlier && here.length > 1) {
+      // The smallest step forward (or, failing that, the smallest slip back within the slack).
+      let best: { step: number; d: number } | undefined
+      for (const f of candidatesFor(stats, earlier)) {
+        for (const d of here) {
+          const step = d - f
+          const cost = step >= 0 ? step : -step + SLACK_M // forward beats backward, whatever the backward distance
+          if (step >= -SLACK_M && (!best || cost < best.step)) best = { step: cost, d }
+        }
+      }
+      if (best) at = best.d
     }
     out[t.trackerName] = at
   }

@@ -29,7 +29,7 @@ func TestSimTrackerWalksCourseAndParses(t *testing.T) {
 		msg, done := s.Step(time.Minute)
 		steps++
 		p, err := app.ParseMessage([]byte(msg), now)
-		if err != nil || !p.HasFix || p.TrackerName != "Sweep1" || p.BatteryV == nil || p.Alt == nil {
+		if err != nil || !p.HasFix || p.TrackerName != "Sweep1" || p.BatteryV == nil || p.Alt == nil || p.Sats == nil || *p.Sats < 7 || *p.Sats > 12 {
 			t.Fatalf("%q: %v %+v", msg, err, p)
 		}
 		if p.Lat < lastLat {

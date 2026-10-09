@@ -76,7 +76,9 @@ describe('MapPage', () => {
     at('/e/e1')
     expect(await screen.findByText('Mile 5.5')).toBeInTheDocument() // 0.021° on the way back, not mile 1.3 on the way out
     expect(getPositions).toHaveBeenCalledWith('e1', 500)
-    expect(screen.getAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(8) // only the newest 8 are listed
+    expect(screen.queryAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(0) // reports stay tucked away until opened
+    await userEvent.click(screen.getByRole('button', { name: /Recent reports \(8\)/ })) // only the newest 8 are kept for display
+    expect(screen.getAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(8)
     expect(screen.getByText(/^Aid 1 \(out\) · mi 1\.4$/)).toBeInTheDocument()
     expect(screen.getByText(/^Aid 1 \(in\) · mi 5\.5$/)).toBeInTheDocument()
   })

@@ -161,6 +161,7 @@ type Position struct {
 	Lon         float64   `json:"lon"`
 	Alt         *float64  `json:"alt,omitempty"` // feet, as reported by the tracker
 	BatteryV    *float64  `json:"batteryV,omitempty"`
+	Sats        *int      `json:"sats,omitempty"` // satellites in view, as reported by the tracker
 	Moving      bool      `json:"moving"`
 	Time        time.Time `json:"time"`
 	ReceivedAt  time.Time `json:"receivedAt"`

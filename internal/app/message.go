@@ -35,6 +35,7 @@ var (
 	coordsRe = regexp.MustCompile(`(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)`)
 	altRe    = regexp.MustCompile(`\balt=(-?\d+(?:\.\d+)?)\s*(ft|m)?`)
 	batRe    = regexp.MustCompile(`\bbat=(\d+(?:\.\d+)?)\s*V?`)
+	satsRe   = regexp.MustCompile(`\bsats=(\d+)`)
 )
 
 func parseText(s string, now time.Time) (*domain.Position, error) {
@@ -51,6 +52,11 @@ func parseText(s string, now time.Time) (*domain.Position, error) {
 	if b := batRe.FindStringSubmatch(rest); b != nil {
 		v, _ := strconv.ParseFloat(b[1], 64)
 		p.BatteryV = &v
+	}
+	if m := satsRe.FindStringSubmatch(rest); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			p.Sats = &n
+		}
 	}
 	if !strings.HasPrefix(strings.ToLower(rest), "no fix") {
 		if m := coordsRe.FindStringSubmatch(rest); m != nil {
@@ -105,6 +111,10 @@ func parseJSON(payload []byte, now time.Time) (*domain.Position, error) {
 	}
 	if b, ok := num(pick("bat", "battery", "battery_v")); ok {
 		p.BatteryV = &b
+	}
+	if n, ok := num(pick("sats", "satellites")); ok && n >= 0 && n <= 255 {
+		s := int(n)
+		p.Sats = &s
 	}
 	if v, ok := pick("moving", "is_moving", "mv"); ok {
 		p.Moving, _ = toBool(v)
