@@ -71,9 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # to push to GHCR, which only happens for main
-    env:
-      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      packages: write # to push to GHCR (main and same-repo pull requests only)
     steps:
       - uses: actions/checkout@v7
 
@@ -87,6 +85,37 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      # What this run publishes:
+      #   release: a push to main. latest, sha-<commit> and the VERSION tag.
+      #   preview: a pull request from this repository. pr-<number> and <VERSION>-pr<number>.<commit>,
+      #            so a change can be tried before it is merged. Never latest or the plain version.
+      #   none:    anything else (a pull request from a fork has no permission to push). Built and tested only.
+      - name: What to publish
+        id: plan
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          short=${HEAD_SHA::7}
+          if [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
+            kind=release; app_version=$VERSION
+          elif [ "$EVENT" = pull_request ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
+            kind=preview; app_version="$VERSION-pr$PR.$short"
+          else
+            kind=none; app_version="$VERSION-dev.$short"
+          fi
+          {
+            echo "kind=$kind"
+            echo "app_version=$app_version"
+            echo "short=$short"
+            echo "publish=$([ "$kind" = none ] && echo false || echo true)"
+          } >> "$GITHUB_OUTPUT"
+          echo "This run: $kind (the app will report version $app_version)"
+
       - uses: docker/setup-buildx-action@v4
 
       - name: Image labels
@@ -95,7 +124,7 @@ jobs:
         with:
           images: ${{ steps.version.outputs.image }}
           labels: |
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.plan.outputs.app_version }}
 
       - name: Build the image (for this machine)
         uses: docker/build-push-action@v7
@@ -104,42 +133,52 @@ jobs:
           load: true
           tags: sweep-tracker:ci
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: VERSION=${{ steps.version.outputs.version }}
+          build-args: VERSION=${{ steps.plan.outputs.app_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Smoke test (Postgres and MQTT in Docker, a position through the whole path)
-        run: scripts/smoke-image.sh sweep-tracker:ci "${{ steps.version.outputs.version }}"
+        run: scripts/smoke-image.sh sweep-tracker:ci "${{ steps.plan.outputs.app_version }}"
 
       - name: Log in to GHCR
-        if: env.PUBLISH == 'true'
+        if: steps.plan.outputs.publish == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # latest and sha-<commit> always move. The version tag is only written the first time, so a
+      # A release moves latest and sha-<commit>. Its version tag is only written the first time, so a
       # published version is never silently replaced: bump VERSION to publish a new one.
       - name: Work out the tags
         id: tags
-        if: env.PUBLISH == 'true'
+        if: steps.plan.outputs.publish == 'true'
         env:
           IMAGE: ${{ steps.version.outputs.image }}
           VERSION: ${{ steps.version.outputs.version }}
+          KIND: ${{ steps.plan.outputs.kind }}
+          APP_VERSION: ${{ steps.plan.outputs.app_version }}
+          SHORT: ${{ steps.plan.outputs.short }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          tags="$IMAGE:latest,$IMAGE:sha-${GITHUB_SHA::7}"
-          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
-            echo "::warning::$IMAGE:$VERSION is already published, so it was not replaced. Bump VERSION to publish a new version tag."
-            echo "version_tag=skipped (already published)" >> "$GITHUB_OUTPUT"
+          if [ "$KIND" = preview ]; then
+            tags="$IMAGE:pr-$PR,$IMAGE:$APP_VERSION"
+            version_tag="none (a preview, not a release)"
           else
-            tags="$tags,$IMAGE:$VERSION"
-            echo "version_tag=$VERSION" >> "$GITHUB_OUTPUT"
+            tags="$IMAGE:latest,$IMAGE:sha-$SHORT"
+            if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+              echo "::warning::$IMAGE:$VERSION is already published, so it was not replaced. Bump VERSION to publish a new version tag."
+              version_tag="skipped (already published)"
+            else
+              tags="$tags,$IMAGE:$VERSION"
+              version_tag="$VERSION"
+            fi
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "version_tag=$version_tag" >> "$GITHUB_OUTPUT"
 
       - name: Push to GHCR (amd64 and arm64)
-        if: env.PUBLISH == 'true'
+        if: steps.plan.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -147,19 +186,32 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: VERSION=${{ steps.version.outputs.version }}
+          build-args: VERSION=${{ steps.plan.outputs.app_version }}
           cache-from: type=gha
 
       - name: Summary
-        if: env.PUBLISH == 'true'
         env:
+          KIND: ${{ steps.plan.outputs.kind }}
           TAGS: ${{ steps.tags.outputs.tags }}
           VERSION_TAG: ${{ steps.tags.outputs.version_tag }}
+          APP_VERSION: ${{ steps.plan.outputs.app_version }}
         run: |
           {
-            echo "### Published to GHCR"
-            echo
-            echo "Version tag: \`$VERSION_TAG\`"
-            echo
-            echo "$TAGS" | tr ',' '\n' | while read -r tag; do echo "- \`$tag\`"; done
+            if [ "$KIND" = none ]; then
+              echo "### Image built and tested (not published)"
+              echo
+              echo "Pull requests from forks cannot push images."
+            elif [ "$KIND" = preview ]; then
+              echo "### Preview image published to GHCR"
+              echo
+              echo "Not \`latest\` and not a release: this is what the pull request would build. The app reports version \`$APP_VERSION\`."
+            else
+              echo "### Release published to GHCR"
+              echo
+              echo "Version tag: $VERSION_TAG"
+            fi
+            if [ -n "$TAGS" ]; then
+              echo
+              echo "$TAGS" | tr ',' '\n' | while read -r tag; do echo "- \`$tag\`"; done
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
