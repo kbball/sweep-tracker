@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -53,13 +54,46 @@ func run(ctx context.Context, args []string, env func(string) string, out io.Wri
 		return serve(ctx, env)
 	case "maps":
 		return mapsCmd(ctx, args, env, out)
+	case "healthcheck":
+		return healthcheck(ctx, env)
 	case "simulate":
 		return simulateCmd(ctx, args, env, out)
 	case "version":
 		fmt.Fprintln(out, version)
 		return nil
 	}
-	return fmt.Errorf("unknown command %q (serve | maps download | simulate | version)", cmd)
+	return fmt.Errorf("unknown command %q (serve | maps download | simulate | healthcheck | version)", cmd)
+}
+
+// healthcheck asks the running server whether it is up, for Docker's HEALTHCHECK
+// (the image has no shell or curl). It exits non-zero unless /api/healthz answers 200.
+func healthcheck(ctx context.Context, env func(string) string) error {
+	addr := env("SWEEP_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("SWEEP_ADDR %q: %w", addr, err)
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(host, port)+"/api/healthz", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz: HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func newTiles(cfg config.Config) (*tiles.Store, *tiles.Downloader) {

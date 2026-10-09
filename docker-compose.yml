@@ -1,17 +1,44 @@
-# Example: sweep-tracker + Postgres. Point SWEEP_MQTT_BROKER at the broker your
-# Meshcore→MQTT bridge publishes to (add that container here if you run it locally).
+# Example: sweep-tracker + Postgres, from the published image.
+#
+#   docker compose up -d                          # Postgres + the app; point SWEEP_MQTT_BROKER at your broker
+#   docker compose --profile local-broker up -d   # ...plus a throwaway local MQTT broker to try it out
+#
+# In production the MQTT broker already exists: set SWEEP_MQTT_BROKER (and SWEEP_MQTT_TOPIC, and the
+# user/password variables if it needs them) to the broker your Meshcore→MQTT bridge publishes to.
+#
+# SWEEP_VERSION picks the image (default: latest). To build from this checkout instead:
+#   docker compose up -d --build
 services:
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment: { POSTGRES_PASSWORD: sweep, POSTGRES_DB: sweep }
     volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sweep"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mqtt:
+    profiles: [local-broker]
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./dev/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqttdata:/mosquitto/data
+
   sweep:
-    build: { context: ., args: { VERSION: "0.1.0" } }
-    depends_on: [db]
+    image: ghcr.io/kbball/sweep-tracker:${SWEEP_VERSION:-latest}
+    build: { context: ., args: { VERSION: "${SWEEP_VERSION:-dev}" } }
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
     ports: ["8080:8080"]
     environment:
       SWEEP_DATABASE_URL: postgres://postgres:sweep@db:5432/sweep?sslmode=disable
-      SWEEP_MQTT_BROKER: tcp://mqtt:1883
-      SWEEP_MQTT_TOPIC: meshcore/sweep/#
+      SWEEP_MQTT_BROKER: ${SWEEP_MQTT_BROKER:-tcp://mqtt:1883}
+      SWEEP_MQTT_TOPIC: ${SWEEP_MQTT_TOPIC:-meshcore/sweep/#}
     volumes: [sweepdata:/data]
-volumes: { pgdata: {}, sweepdata: {} }
+
+volumes: { pgdata: {}, sweepdata: {}, mqttdata: {} }

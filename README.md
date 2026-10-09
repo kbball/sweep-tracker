@@ -14,10 +14,24 @@ Shows where the sweep teams (the last runners on course, who make sure everyone 
 ## Quick start
 
 ```sh
-docker compose up --build
+docker compose up -d                          # Postgres + the published image; set SWEEP_MQTT_BROKER to your broker
+docker compose --profile local-broker up -d   # ...or with a throwaway local MQTT broker, to try it out
 ```
 
-Open http://localhost:8080 and go to **Admin**. The compose file is an example: point `SWEEP_MQTT_BROKER` at the broker your Meshcore bridge publishes to.
+Open http://localhost:8080 and go to **Admin**. The compose file is an example: point `SWEEP_MQTT_BROKER` at the broker your Meshcore bridge publishes to. `docker compose up -d --build` builds from a checkout instead of pulling the image.
+
+### The image
+
+Images are published to GitHub Container Registry as `ghcr.io/kbball/sweep-tracker`, for amd64 and arm64:
+
+| Tag | Meaning |
+|---|---|
+| `0.2.0` | That release: the version in the `VERSION` file. Written once and never replaced. |
+| `latest` | The newest build of `main`. |
+| `sha-abc1234` | A specific commit on `main`. |
+| `pr-6`, `0.2.0-pr6.abc1234` | A preview of pull request 6 (and of its latest commit), to try a change before it is merged. Never `latest`, never a release; the app reports that version. |
+
+Pin a release with `SWEEP_VERSION=0.2.0 docker compose up -d`. The image runs as a non-root user, keeps map tiles in the `/data` volume, and has a built-in health check (`sweeptracker healthcheck`), so `docker ps` and compose show whether it is up.
 
 ### Configuration (environment)
 
@@ -90,3 +104,12 @@ It uses the trackers assigned to the event (or `--trackers A,B`), `--speed-kmh` 
 The UI font (DM Sans, SIL OFL 1.1) is bundled via `@fontsource-variable/dm-sans`, so nothing is fetched from the internet at runtime.
 
 Layout (hexagonal): `internal/domain` → `internal/app` (use cases + ports) → `internal/adapters/*` (postgres, mqtt, httpapi, gpx, tiles, memory); `cmd/sweeptracker` wires it together. See `CLAUDE.md` for the project rules, `plan.md` for remaining work and `CHANGELOG.md` for changes. Versioning is semantic; the version lives in `VERSION`.
+
+## CI and releases
+
+Every pull request and every push to `main` runs the GitHub Actions workflow in `.github/workflows/ci.yml`: `gofmt`, `go vet`, the Go tests (with the race detector, against a Postgres service) and the Go coverage gate; the frontend type check, tests, coverage gate and build; then the Docker image is built and smoke-tested (`scripts/smoke-image.sh`: real Postgres and MQTT containers, a position sent over MQTT and read back from the API). `make image` and `make smoke` do the same locally.
+
+`main` is protected: changes go in through a pull request whose checks (`Go`, `Frontend`, `Image`) pass. A pull request from this repository also publishes a **preview** image (`pr-<number>`), so a change can be tried before it is merged; pull requests from forks are built and tested but not published. Previews are deleted when the pull request is merged or closed; a weekly run (`cleanup-previews.yml`, also runnable by hand with a dry-run default) catches anything missed. It only ever touches versions whose tags are all preview tags, never `latest`, `sha-…` or a release. When a change reaches `main`, the release image is pushed: `latest`, `sha-<commit>` and the `VERSION` tag.
+
+**To release a new version:** bump `VERSION`, move the `Unreleased` entries in `CHANGELOG.md` under the new version, and merge. If `VERSION` is unchanged the build still updates `latest` and `sha-…`, but leaves the existing version tag alone and says so in the run's warnings.
+
