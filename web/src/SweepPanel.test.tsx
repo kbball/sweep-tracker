@@ -1,6 +1,8 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SweepPanel } from './SweepPanel'
+import { courseStats } from './course'
+import { formatClock } from './handbook'
 import { pos, track } from './test/fixtures'
 
 const tracks = () => [
@@ -100,5 +102,41 @@ describe('SweepPanel', () => {
   it('omits the mile marker without a fix or a course', () => {
     render(<SweepPanel now={Date.now()} tracks={[track({ positions: [pos(0, { hasFix: false })] })]} />)
     expect(screen.queryByText(/^Mile/)).toBeNull()
+  })
+
+  describe('with the course stops', () => {
+    const M = 1609.344
+    const course = {
+      name: 'C', distanceM: 20 * M, waypoints: [
+        { name: 'Aid 1', lat: 0, lon: 0, passes: [{ distM: 10 * M, use: true, label: 'Powerlines', mile: 10.5, cutoffHours: 6.5, pacer: false, crew: 'Yes/Yes' }] },
+        { name: 'Finish', lat: 0, lon: 0, passes: [{ distM: 20 * M, use: true, mile: 21 }] },
+        { name: 'Start', lat: 0, lon: 0, passes: [{ distM: 0, use: true, mile: 0 }] },
+      ],
+      track: [{ lat: 0, lon: 0 }, { lat: 0.1, lon: 0 }, { lat: 0.2, lon: 0 }],
+    }
+    const stats = courseStats(course)!
+    const here = { sw1: 4 * M } // 4 GPX miles in: 4.2 official miles
+
+    it('shows the official mile and the next stop with its distance and cutoff', () => {
+      render(<SweepPanel now={Date.now()} progress={here} stats={stats} cutoffLabel={(h) => formatClock(h, { weekday: 5, minutes: 720 })} tracks={[track()]} />)
+      expect(screen.getByText('Mile 4.2')).toBeInTheDocument()
+      expect(screen.getByText('Powerlines')).toBeInTheDocument()
+      expect(screen.getByText(/· 6\.3 mi · cutoff Fri 6:30 PM/)).toBeInTheDocument()
+    })
+
+    it('shows the cutoff as hours after the start when there is no start time', () => {
+      render(<SweepPanel now={Date.now()} progress={here} stats={stats} tracks={[track()]} />)
+      expect(screen.getByText(/cutoff \+6\.5 h/)).toBeInTheDocument()
+    })
+
+    it('leaves out the cutoff when the next stop has none, and the line when there is no next stop', () => {
+      const noCutoff = courseStats({ ...course, waypoints: course.waypoints.map((w) => ({ ...w, passes: w.passes.map((p) => ({ ...p, cutoffHours: undefined })) })) })!
+      const { unmount } = render(<SweepPanel now={Date.now()} progress={here} stats={noCutoff} tracks={[track()]} />)
+      expect(screen.getByText(/· 6\.3 mi$/)).toBeInTheDocument()
+      expect(screen.queryByText(/cutoff/)).toBeNull()
+      unmount()
+      render(<SweepPanel now={Date.now()} progress={{ sw1: 20 * M }} stats={stats} tracks={[track()]} />)
+      expect(screen.queryByText(/Next:/)).toBeNull() // at the finish
+    })
   })
 })

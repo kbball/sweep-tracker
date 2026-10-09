@@ -69,7 +69,14 @@ function nearestAlong(track: Point[], cum: number[], lat: number, lon: number): 
   return along
 }
 
-export interface CourseStop { name: string; distM: number }
+export interface CourseStop {
+  name: string
+  distM: number
+  mile?: number // official mile
+  cutoffHours?: number // after the race start
+  pacer?: boolean
+  crew?: string
+}
 export interface CourseStats {
   totalM: number
   /** One entry per confirmed aid-station pass, in course order. */
@@ -78,7 +85,15 @@ export interface CourseStats {
   profile: { d: number; ele: number }[] | null
   /** Every place the course goes by (lat, lon), in metres along it. */
   candidates: (lat: number, lon: number) => number[]
+  /** The mile at a distance along the course: official miles between the stops that have them, else the GPX distance. */
+  mileAt: (distM: number) => number
+  /** The next stop ahead of a position, with the miles to it. */
+  nextStop: (distM: number) => { stop: CourseStop; miles: number } | undefined
 }
+
+const MILE_M = 1609.344
+/** A team this close to a stop is at it, so its "next" stop is the one after. */
+const AT_STOP_M = 50
 
 /** Within this distance of the course a GPS fix counts as being on it. */
 const FIX_RADIUS_M = 100
@@ -104,7 +119,7 @@ export function courseStats(course: Course, maxSamples = 200): CourseStats | nul
     const used = w.passes.filter((p) => p.use)
     for (const p of used) {
       const leg = used.length > 1 ? (p.distM < totalM / 2 ? ' (out)' : ' (in)') : ''
-      stops.push({ name: name + leg, distM: p.distM })
+      stops.push({ name: p.label || name + leg, distM: p.distM, mile: p.mile, cutoffHours: p.cutoffHours, pacer: p.pacer, crew: p.crew })
     }
   }
   stops.sort((a, b) => a.distM - b.distM)
@@ -117,8 +132,25 @@ export function courseStats(course: Course, maxSamples = 200): CourseStats | nul
     const kept = c.filter((d) => !unusedAt.some((u) => Math.abs(u - d) < UNUSED_PASS_M))
     return kept.length ? kept : c
   }
+  // Official miles are only known at the stops that have them; between them the position is interpolated.
+  const anchors = stops.filter((s): s is CourseStop & { mile: number } => s.mile !== undefined)
+  const mileAt = (d: number): number => {
+    if (anchors.length < 2) return d / MILE_M
+    const first = anchors[0], last = anchors[anchors.length - 1]
+    if (d <= first.distM) return Math.max(0, first.mile - (first.distM - d) / MILE_M)
+    if (d >= last.distM) return last.mile + (d - last.distM) / MILE_M
+    let i = 1
+    while (anchors[i].distM < d) i++
+    const a = anchors[i - 1], b = anchors[i]
+    return b.distM === a.distM ? a.mile : a.mile + ((d - a.distM) / (b.distM - a.distM)) * (b.mile - a.mile)
+  }
+  const nextStop = (d: number) => {
+    const stop = stops.find((s) => s.distM > d + AT_STOP_M)
+    if (!stop) return undefined
+    return { stop, miles: Math.max(0, stop.mile !== undefined && anchors.length >= 2 ? stop.mile - mileAt(d) : (stop.distM - d) / MILE_M) }
+  }
   return {
-    totalM, stops, profile,
+    totalM, stops, profile, mileAt, nextStop,
     candidates: (lat, lon) => placeable(passesOf(track, cum, lat, lon, FIX_RADIUS_M)),
   }
 }
@@ -132,6 +164,9 @@ function candidatesFor(stats: CourseStats, p: Position): number[] {
   if (!c) m.set(key, (c = stats.candidates(p.lat, p.lon)))
   return c
 }
+
+/** A team never appears this far before the place it starts from. */
+const START_SLACK_M = 300
 
 /** How far a team may appear to slip back (GPS jitter, a short detour) before that counts as the other leg. */
 const SLACK_M = 300
@@ -151,8 +186,9 @@ const LOOKBACK_MS = 6 * 3600_000
  * 50 m away within the last 6 hours, so a team resting at an aid station is
  * judged by how it arrived. A team that hasn't moved yet, or that only moved
  * backwards along the course, keeps moving forward from the first pass.
- * Fixes before `since` (epoch ms) are ignored, so an earlier run with the same
- * tracker doesn't count.
+ * A team with a start point (`startM`) is only ever placed from there on, which
+ * also settles its first report. Fixes before `since` (epoch ms) are ignored, so
+ * an earlier run with the same tracker doesn't count.
  */
 export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since = -Infinity): Record<string, number> {
   const out: Record<string, number> = {}
@@ -160,11 +196,18 @@ export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since
     const fixes = t.positions.filter((p) => p.hasFix && new Date(p.time).getTime() >= since)
       .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
     if (fixes.length === 0) continue
+    // A team that starts part-way along the course (leaving Dry Creek, say) can only be from there on.
+    const candidatesOf = (p: Position) => {
+      const c = candidatesFor(stats, p)
+      if (t.startM === undefined) return c
+      const kept = c.filter((d) => d >= t.startM! - START_SLACK_M)
+      return kept.length ? kept : c
+    }
 
     // Without a clear step: keep moving forward from the first pass.
     let chain: number | undefined
     for (const p of fixes) {
-      const c = candidatesFor(stats, p)
+      const c = candidatesOf(p)
       if (chain === undefined) chain = c[0]
       else {
         const prev = chain
@@ -175,12 +218,12 @@ export function teamProgress(stats: CourseStats, tracks: TrackerHistory[], since
     const latest = fixes[fixes.length - 1]
     const latestAt = new Date(latest.time).getTime()
     const earlier = [...fixes].reverse().find((p) => latestAt - new Date(p.time).getTime() <= LOOKBACK_MS && haversine(p, latest) >= MIN_MOVE_M)
-    const here = candidatesFor(stats, latest)
+    const here = candidatesOf(latest)
     let at = chain!
     if (earlier && here.length > 1) {
       // The smallest step forward (or, failing that, the smallest slip back within the slack).
       let best: { step: number; d: number } | undefined
-      for (const f of candidatesFor(stats, earlier)) {
+      for (const f of candidatesOf(earlier)) {
         for (const d of here) {
           const step = d - f
           const cost = step >= 0 ? step : -step + SLACK_M // forward beats backward, whatever the backward distance

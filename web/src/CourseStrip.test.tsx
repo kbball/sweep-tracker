@@ -52,6 +52,19 @@ describe('CourseStrip', () => {
     expect(screen.queryByText(/^Aid C/)).toBeNull()
   })
 
+  it('shows official miles, the handbook names and the official length when the stops have them', () => {
+    const c = course({ waypoints: [
+      { name: 'Aid 1', lat: 40.025, lon: -105, passes: [{ distM: 2780, use: true, label: 'Powerlines', mile: 3.2 }] },
+      { name: 'Aid 2', lat: 40.075, lon: -105, passes: [{ distM: 8340, use: true, mile: 100 }] },
+    ] })
+    const stats = courseStats(c)!
+    render(<CourseStrip stats={stats} tracks={[track()]} progress={{ sw1: 5560 }} />)
+    expect(screen.getByText('Powerlines · mi 3.2')).toBeInTheDocument()
+    expect(screen.getByText('Aid 2 · mi 100.0')).toBeInTheDocument()
+    expect(screen.getByText(/mi 51\.6/)).toBeInTheDocument() // the team, half way between the two official miles
+    expect(screen.getByText(/^1\d\d\.\d mi$/)).toBeInTheDocument() // the official length, not the 6.9 GPX miles
+  })
+
   it('draws a flat line when the course has no elevation', () => {
     const flat = course({ track: course().track.map(({ lat, lon }) => ({ lat, lon })) })
     const { container } = render(<CourseStrip stats={courseStats(flat)} tracks={[]} />)

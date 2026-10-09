@@ -1,13 +1,24 @@
 export interface Point { lat: number; lon: number; ele?: number }
 /** A place the course goes by an aid station; `use` marks the passes that are real visits. */
-export interface Pass { distM: number; use: boolean }
+export interface Pass {
+  distM: number
+  use: boolean
+  label?: string // handbook name, e.g. "Finish Loop #4 & Leave DC"
+  mile?: number // official mile (can differ from the GPX distance)
+  cutoffHours?: number // hours after the race start
+  pacer?: boolean
+  crew?: string // crew access / drop bag, as printed
+}
+/** What the organiser says about one pass, in course order. */
+export interface StopInput { use: boolean; label: string; mile?: number; cutoffHours?: number; pacer: boolean; crew: string }
 export interface Waypoint extends Point { name: string; desc?: string; type?: string; passes?: Pass[] }
 export interface Course { name: string; track: Point[]; waypoints: Waypoint[]; distanceM: number }
-export interface EventTracker { trackerName: string; label: string; color: string }
+export interface EventTracker { trackerName: string; label: string; color: string; startM?: number /* metres along the course this team starts from */ }
 export interface SweepEvent {
   id: string
   name: string
   date: string
+  startTime?: string // local wall-clock start, "HH:MM"
   notes: string
   course?: Course | null
   trackers: EventTracker[]
