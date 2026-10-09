@@ -1,0 +1,41 @@
+# Local development dependencies: Postgres and an MQTT broker (Mosquitto).
+# In production both already exist; the app itself runs from `go run` / `npm run dev`
+# or the image built by the Dockerfile (see docker-compose.yml for an all-in-one example).
+#
+#   make dev-up      start the dependencies
+#   make dev-down    stop them (data is kept; `make dev-reset` wipes it)
+#
+# Host ports are chosen to avoid clashing with other local stacks; override with
+# SWEEP_DEV_DB_PORT / SWEEP_DEV_MQTT_PORT.
+name: sweep-tracker-dev
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: sweep
+      POSTGRES_DB: sweep
+    ports:
+      - "${SWEEP_DEV_DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sweep"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "${SWEEP_DEV_MQTT_PORT:-1884}:1883"
+    volumes:
+      - ./dev/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+
+volumes:
+  pgdata:
+  mosquitto_data:

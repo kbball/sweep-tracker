@@ -66,19 +66,20 @@ cd web && npm ci && npm run cover        # frontend tests, 80% thresholds
 make build                               # frontend + single binary in bin/
 ```
 
-Run locally: set `SWEEP_DATABASE_URL`, `./bin/sweeptracker serve`. For frontend development run `npm run dev` in `web/` (serves the UI on :5173 and proxies `/api` to :8080). Database migrations (Goose) are embedded and applied at startup.
+Run locally: `make dev-up` starts Postgres and a Mosquitto MQTT broker from `docker-compose.dev.yml` (in production both already exist) and prints the `SWEEP_DATABASE_URL` / `SWEEP_MQTT_BROKER` exports to use; then `./bin/sweeptracker serve`. `make dev-down` stops them, `make dev-reset` also deletes their data. Host ports default to 5433 (Postgres) and 1884 (MQTT) so they don't clash with other local stacks; override with `SWEEP_DEV_DB_PORT` / `SWEEP_DEV_MQTT_PORT`. For frontend development run `npm run dev` in `web/` (serves the UI on :5173 and proxies `/api` to :8080). Database migrations (Goose) are embedded and applied at startup.
 
 ### Demo / QA simulator
 
 `sweeptracker simulate` walks fake sweep teams along an event's course and publishes their positions to the MQTT broker, so the whole pipeline (broker → server → live map) is exercised without hardware. The server must be subscribed to the same broker (`SWEEP_MQTT_BROKER`).
 
 ```sh
-docker run -d --rm --name sweep-mqtt -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
-SWEEP_MQTT_BROKER=tcp://localhost:1883 ./bin/sweeptracker serve          # in one terminal
-SWEEP_MQTT_BROKER=tcp://localhost:1883 ./bin/sweeptracker simulate --event <id> --speedup 60 --interval 2s
+make dev-up                                                          # Postgres + MQTT; prints the exports below
+eval "$(make -s dev-env)"                                            # SWEEP_DATABASE_URL and SWEEP_MQTT_BROKER
+./bin/sweeptracker serve                                             # in one terminal
+./bin/sweeptracker simulate --event <id> --speedup 60 --interval 2s  # in another
 ```
 
-It uses the trackers assigned to the event (or `--trackers A,B`), `--speed-kmh` (default 5), `--stagger-m` to start extra teams further along, and `--server` (default `http://localhost:8080`) to read the event.
+It uses the trackers assigned to the event (or `--trackers A,B`), `--speed-kmh` (default 5), `--stagger-m` to start extra teams further along, `--start-mile` to start part-way along the course (such as a sweep that starts at the turnaround), and `--server` (default `http://localhost:8080`) to read the event.
 
 The UI font (DM Sans, SIL OFL 1.1) is bundled via `@fontsource-variable/dm-sans`, so nothing is fetched from the internet at runtime.
 

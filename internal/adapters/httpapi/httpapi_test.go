@@ -109,6 +109,19 @@ func TestEventFlow(t *testing.T) {
 	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/course", "junk")
 	expect(t, c, 400, b)
 
+	// aid station passes
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `{"use":[[false]]}`)
+	expect(t, c, 200, b)
+	if !strings.Contains(string(b), `"passes":[{"distM":`) || !strings.Contains(string(b), `"use":false`) {
+		t.Fatal(string(b))
+	}
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `{"use":[[true,true]]}`)
+	expect(t, c, 400, b)
+	c, b = e.do(t, "PUT", "/api/events/"+ev.ID+"/passes", `x`)
+	expect(t, c, 400, b)
+	c, b = e.do(t, "PUT", "/api/events/nope/passes", `{"use":[]}`)
+	expect(t, c, 404, b)
+
 	// multipart
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)

@@ -1,8 +1,7 @@
-import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import { courseStats, teamDistance } from './course'
+import type { CourseStats } from './course'
 import { metersToMiles } from './format'
-import type { Course, TrackerHistory } from './types'
+import type { TrackerHistory } from './types'
 
 const mi = (m: number) => metersToMiles(m).toFixed(1)
 
@@ -18,8 +17,7 @@ function place(text: string, p: number): Omit<Label, 'row'> {
 }
 
 /** Elevation profile of the course with aid stations and each team's position. */
-export function CourseStrip({ course, tracks }: { course?: Course | null; tracks: TrackerHistory[] }) {
-  const stats = useMemo(() => (course ? courseStats(course) : null), [course])
+export function CourseStrip({ stats, tracks, progress }: { stats?: CourseStats | null; tracks: TrackerHistory[]; progress?: Record<string, number> }) {
   if (!stats) return null
   const pct = (m: number) => (m / stats.totalM) * 100
 
@@ -44,7 +42,7 @@ export function CourseStrip({ course, tracks }: { course?: Course | null; tracks
     labels.push({ ...l, row })
   })
   const teams = tracks
-    .map((t) => ({ t, d: teamDistance(stats, t) }))
+    .map((t) => ({ t, d: progress?.[t.trackerName] }))
     .filter((x): x is { t: TrackerHistory; d: number } => x.d != null)
 
   return (

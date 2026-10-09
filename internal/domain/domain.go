@@ -26,6 +26,9 @@ type Waypoint struct {
 	Name string `json:"name"`
 	Desc string `json:"desc,omitempty"`
 	Type string `json:"type,omitempty"`
+	// Passes are the places the course goes by this waypoint (an out-and-back
+	// course passes each aid station twice). See Course.EnsurePasses.
+	Passes []Pass `json:"passes,omitempty"`
 	Point
 }
 

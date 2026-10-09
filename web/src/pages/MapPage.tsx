@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
+import { courseStats, teamProgress } from '../course'
 import { CourseStrip } from '../CourseStrip'
 import { lastFix } from '../format'
 import { SweepMap } from '../SweepMap'
 import type { Focus } from '../SweepMap'
 import { SweepPanel } from '../SweepPanel'
 import { ThemeToggle } from '../ThemeToggle'
-import { useLive } from '../useLive'
+import { HISTORY, useLive } from '../useLive'
 import type { MapLayer } from '../types'
 
 const icon = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
@@ -19,6 +20,13 @@ export function MapPage() {
   const [now, setNow] = useState(() => Date.now())
   const [selected, setSelected] = useState<string>()
   const [focus, setFocus] = useState<Focus>()
+
+  const stats = useMemo(() => (event?.course ? courseStats(event.course) : null), [event?.course])
+  // Reports from well before the event date belong to an earlier run of the same tracker.
+  const since = event ? new Date(event.date).getTime() - 12 * 3600_000 : undefined
+  const progress = useMemo(() => (stats ? teamProgress(stats, tracks, since) : undefined), [stats, tracks, since])
+  // Reports beyond the newest few are kept only to follow each team along the course.
+  const recent = useMemo(() => tracks.map((t) => ({ ...t, positions: t.positions.slice(0, HISTORY) })), [tracks])
 
   useEffect(() => { api.maps().then((m) => setLayers(m.layers)).catch(() => undefined) }, [])
   useEffect(() => {
@@ -37,7 +45,7 @@ export function MapPage() {
 
   return (
     <div className="live">
-      <SweepMap course={event.course} tracks={tracks} layers={layers} focus={focus} />
+      <SweepMap course={event.course} tracks={recent} layers={layers} focus={focus} />
 
       <nav className="rail card" aria-label="Main">
         <Link to="/" className="icon-btn" aria-label="All events" title="All events">
@@ -58,10 +66,10 @@ export function MapPage() {
           </span>
         </header>
         {!event.course && <p className="muted">No course loaded. Upload a GPX in <Link to="/admin">Admin</Link>.</p>}
-        <SweepPanel tracks={tracks} now={now} course={event.course} selected={selected} onSelect={select} />
+        <SweepPanel tracks={recent} now={now} progress={progress} selected={selected} onSelect={select} />
       </section>
 
-      <CourseStrip course={event.course} tracks={tracks} />
+      <CourseStrip stats={stats} tracks={recent} progress={progress} />
     </div>
   )
 }

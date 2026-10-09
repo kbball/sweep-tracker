@@ -178,3 +178,9 @@ button.save { margin-top: 12px; }
 .add-card { border: 1px dashed var(--border); border-radius: 12px; padding: 4px 14px 14px; }
 .add-card .muted { margin: .25rem 0 0; font-size: .85rem; }
 .add-card .row input { flex: 1; min-width: 140px; }
+
+.station { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.station strong { min-width: 200px; }
+.passes { display: flex; gap: 14px; flex-wrap: wrap; }
+label.check { flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: .9rem; color: var(--text); }
+label.check input { width: 18px; height: 18px; accent-color: var(--accent); }

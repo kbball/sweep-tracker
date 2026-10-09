@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SweepPanel } from './SweepPanel'
-import { event, pos, track } from './test/fixtures'
+import { pos, track } from './test/fixtures'
 
 const tracks = () => [
   track(),
@@ -41,10 +41,8 @@ describe('SweepPanel', () => {
     expect(onSelect).toHaveBeenCalledWith('sw3')
   })
 
-  it('shows the mile marker from the course', () => {
-    const course = event().course!
-    course.track = [{ lat: 39.7, lon: -105 }, { lat: 39.8, lon: -105 }] // ~6.9 mi north
-    render(<SweepPanel now={Date.now()} course={course} tracks={[track({ positions: [pos(0, { lat: 39.75, lon: -105 })] })]} />)
+  it('shows the mile marker from the team progress', () => {
+    render(<SweepPanel now={Date.now()} progress={{ sw1: 5632.7 }} tracks={[track()]} />)
     expect(screen.getByText('Mile 3.5')).toBeInTheDocument()
   })
 
