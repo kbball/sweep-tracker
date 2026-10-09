@@ -13,7 +13,8 @@ Shows the location of race "sweep" teams (last runners on course, removing flagg
 - Backend Go, frontend React+TS, DB Postgres, migrations with Goose (embedded, run at startup). New schema changes = new numbered migration; never edit an applied one.
 - Test coverage must stay **> 80%** for Go (`make cover`) and for the frontend (vitest threshold). Business logic is tested against `adapters/memory`; postgres tests need `TEST_DATABASE_URL`.
 - The app must run fully offline: no runtime calls to external services except the explicit, user-triggered map refresh.
-- Semantic versioning; version lives in `VERSION`. Every user-visible change gets a `CHANGELOG.md` entry (Keep a Changelog format) under `Unreleased`.
+- Semantic versioning; version lives in `VERSION`. Every user-visible change gets a `CHANGELOG.md` entry (Keep a Changelog format) under `Unreleased`. CI publishes `ghcr.io/kbball/sweep-tracker:<VERSION>` (once, never replaced) and `:latest` from `main`: bump `VERSION` and cut the changelog to release.
+- `main` is protected: work on a branch and merge through a pull request whose checks (`Go`, `Frontend`, `Image`) pass.
 - `plan.md` lists only **remaining** work; delete items when done.
 - Run `gofmt`, `go vet`, tests before committing. Commit only when asked.
 

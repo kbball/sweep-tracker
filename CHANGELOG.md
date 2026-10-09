@@ -2,43 +2,38 @@
 Format: Keep a Changelog; versioning: Semantic Versioning.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-10-09
 ### Added
-- Admin setup guide: a checklist at the top of Admin that follows the order an event is best set up in (details and start time, course, aid stations and cutoffs, sweep teams, offline maps, trackers reporting). Each step shows Done, To do, Waiting (on an earlier step) or Optional, says what to do next, and has a Go button to its section; before an event is chosen it outlines the order. The sections below are numbered to match.
-- Aid station table (Admin → Aid stations): for each time the course goes by a station, an official mile, cutoff, pacer flag and crew/drop-bag note, plus a name. Fill it by pasting the table from the runner handbook PDF (fields are recognised by shape, so lost blank cells don't matter; distances are cross-checked) or by typing. Cutoffs are times like "6PM Friday" or hours after the start ("+6h"). Re-uploading a corrected GPX keeps these details.
-- Event start time (Admin), used to show cutoffs as clock times; it can be worked out from the first row of a pasted table.
-- Each sweep team has its own starting point (a stop, such as leaving Dry Creek or Snake Creek after the final cutoff). Teams are only placed from there on, which also settles a team's very first report.
+- **Setup guide** at the top of Admin: a checklist in the order an event is best set up (details and start time, course, aid stations and cutoffs, sweep teams, offline maps, trackers reporting). Each step is Done, To do, Waiting (on an earlier step) or Optional, says what to do next, and has a Go button to its section. The sections are numbered to match.
+- **Aid station table** (Admin → Aid stations): one row each time the course passes a station, with an official mile, cutoff, pacer flag and crew/drop-bag note, plus a name. Fill it by pasting the table from the runner handbook PDF (fields are recognised by shape, so lost blank cells don't matter, and the printed distances are cross-checked) or by typing. Cutoffs are times like "6PM Friday" or hours after the start ("+6h"). Re-uploading a corrected GPX keeps these details.
+- **Out-and-back courses:** each aid station has one marker per time the course passes it (detected within 75 m, shown as "(out)" and "(in)"); untick passes that are just the trail running close by. Existing courses get their passes detected when read.
+- Event **start time**, used to show cutoffs as clock times (it can be worked out from the first row of a pasted table), and a **starting point for each sweep team** (a stop, such as leaving Dry Creek or Snake Creek after the final cutoff). A team is only placed from its start onwards, which also settles its first report.
 - The team card shows the official mile, the next stop with the miles to it and its cutoff; the course strip uses the official miles and the handbook names. Between stops a position is interpolated between the official miles.
-- Export options: the event file (`.sweep.json`, everything needed to recreate the event, now including the aid station table, start time and team starts) and the aid station table as CSV for crews and volunteers.
-- `sweeptracker simulate` starts each team at its start point from the event (override with `--start-mile`).
+- **Export:** the event file (`.sweep.json`: course, aid station table, start time, teams and where each starts) and the aid station table as CSV for crews and volunteers.
+- Satellite count (`sats`, also `satellites` in JSON) from tracker messages is stored and shown next to the battery voltage and elevation, each with a Google Material icon (inlined as SVG, so they work offline).
+- Light and dark themes (System / Light / Dark toggle, remembered in the browser; map tiles are darkened with a CSS filter in dark mode) and the DM Sans typeface, bundled with the app.
+- Admin: explicit View, Edit and Delete buttons for each event, with a confirmation before deleting; sweep teams can be defined by name before the tracker is heard; separate "New event" and "Import an event" cards; "Clear offline maps" (with confirmation, `DELETE /api/maps`); disk space used by each offline map layer.
+- `sweeptracker simulate --event <id>`: walks fake sweep teams along an event's course and publishes their positions over MQTT, for demos and QA/UAT. Each team starts at its own start point (override with `--start-mile`). Includes an end-to-end test (simulator → broker → app).
+- Local development stack: `docker-compose.dev.yml` (Postgres and an MQTT broker) with `make dev-up`, `dev-down`, `dev-reset` and `dev-env`.
+- **CI and releases** (GitHub Actions): gofmt, vet, race tests against Postgres and both coverage gates (80%), then the Docker image is built and smoke-tested against real Postgres and MQTT containers. On `main` it is published to GHCR as `ghcr.io/kbball/sweep-tracker` with the version from `VERSION` (written once, never replaced), `latest` and `sha-<commit>`, for amd64 and arm64.
+- `sweeptracker healthcheck` and a Docker `HEALTHCHECK` (the image has no shell or curl); `scripts/smoke-image.sh`, `make image` and `make smoke`.
+
 ### Changed
-- Admin: each section of an event (details, aid stations, sweep teams) saves on its own, so uploading the course or saving the aid stations no longer discards a start time or team edits typed above it. "Save event" is now "Save details" and "Save teams".
-- Each team's report history is a collapsible "Recent reports" section (closed by default), and its rows no longer wrap awkwardly in the narrow panel.
-- Out-and-back courses: each aid station now has one marker per time the course passes it (detected within 75 m, shown as "(out)" and "(in)"). Admin → Aid stations lists the detected passes so you can untick ones that are just the trail running close by (stations with more than two passes are flagged for review). Existing courses get their passes detected when read.
-- A sweep team's mile marker and its place on the course strip now follow its direction of travel: it is placed at the pass that is the smallest step forward along the course from where it was a moment ago, so on an out-and-back a team heading home is placed on the return leg (and one arriving at a finish that is also the start is placed at the finish). A team resting at an aid station is judged by how it arrived (movement within the last 6 hours), reports from more than 12 hours before the event date are ignored, and passes you unticked in Admin are not places a team can be.
-- Offline maps now show how much disk space each layer uses (Admin → Offline maps).
-- Offline map downloads cover 2.5 km around the course by default (was 2 km).
-- The live map opens centred on the course, at the zoom half way between the shallowest and deepest downloaded zoom (zoom 10 when nothing is known), instead of fitting the whole course. The Fit to course button still fits it.
-- Course progress strip labels alternate between two rows and stay inside the strip; the initial fit leaves room for the strip.
-- New map-first live view: full-screen map with a floating team card (state, last report, mile marker, battery, altitude; click a team to expand its history and pan to it), a left rail, restyled map controls, and a course progress strip showing the elevation profile, aid stations and each team's position.
-### Added
-- Satellite count (`sats`) from tracker messages is stored and shown next to the battery voltage, each with a Google Material icon (Satellite Alt, Battery 4 Bar, Landscape 2 for elevation; inlined as SVG so they work offline). Also accepted as `satellites` in JSON.
-- `sweeptracker simulate --start-mile`: start the simulated sweep part-way along the course (for example at a turnaround).
-- Admin: each event has explicit View, Edit and Delete buttons (the one being edited is marked "Editing") instead of clicking its name. Deleting an event asks for confirmation first.
-- Admin restyled to match: panel cards, selectable event list, themed inputs, primary/ghost/danger buttons, file pickers, separate "New event" and "Import an event" cards, team rows, map download chips and progress.
-- Events page and Admin share a themed header; events show as cards (date, Today/Upcoming/Past, course length, waypoints, teams).
-- Light and dark themes (System / Light / Dark toggle, remembered in the browser). In dark mode the map tiles are darkened with a CSS filter, so no extra tiles are needed.
-- DM Sans typeface, bundled with the app (no runtime request to Google).
-- Admin: sweep teams can be defined by name up front, before the tracker has ever been heard on the mesh.
-- `sweeptracker simulate --event <id>`: walks fake sweep teams along an event's course and publishes their positions over MQTT in the tracker message format, for demos and QA/UAT. Includes an automated end-to-end test (simulator → broker → app).
-### Fixed
-- The map no longer zooms in past the deepest downloaded tile level, where tiles would be blank.
-- The map keeps its zoom and pan during live updates instead of re-fitting to the course every few seconds.
-### Added
-- Admin: "Clear offline maps" button (with confirmation dialog) and `DELETE /api/maps` to delete all downloaded tiles.
-### Changed
+- New map-first live view: a full-screen map with a floating team card (state, last report, mile, battery, satellites, elevation; click a team to expand it and pan to it; its report history is a collapsible section), a left rail, restyled controls and a course progress strip with the elevation profile, aid stations and each team's position. The events page and Admin are restyled to match.
+- A sweep team's mile marker and place on the strip follow its direction of travel: it is placed at the pass that is the smallest step forward along the course from where it was a moment ago, so on an out-and-back a team heading home is on the return leg. A team resting at an aid station is judged by how it arrived, reports from more than 12 hours before the event date are ignored, and unticked passes are not places a team can be.
+- The live map opens centred on the course at the zoom half way between the shallowest and deepest downloaded zoom (the Fit to course button still fits it); the strip's labels alternate between two rows and stay inside it.
+- Admin: details, aid stations and sweep teams each save on their own, so saving one no longer discards a start time or team edits typed above it ("Save event" is now "Save details" and "Save teams").
+- Offline maps default to zoom 6–15 and a 2.5 km buffer around the course.
 - Map tiles and the health check moved under `/api` (`/api/tiles/...`, `/api/healthz`), so production serves everything from one port with the API under `/api`.
-- Tracker messages are parsed from the plain-text Meshcore format (JSON still accepted). Altitude is kept in feet.
-- Offline maps default to zoom levels 6–15. Battery voltage (`bat=`) is stored and shown for each report.
+- Tracker messages are parsed from the plain-text Meshcore format (JSON still accepted); altitude is kept in feet; battery voltage is stored and shown.
+- `docker-compose.yml` example: waits for a healthy database, restarts on failure, uses the published image and has an optional local MQTT broker (`--profile local-broker`).
+- `make test` and `make cover` run packages one at a time, so the integration tests don't reset the same database at once.
+
+### Fixed
+- Docker image: map downloads failed with "permission denied" because the data volume belonged to root; and under compose the app exited if Postgres wasn't ready yet.
+- The map no longer zooms in past the deepest downloaded tile level, where tiles would be blank, and keeps its zoom and pan during live updates instead of re-fitting every few seconds.
+
 ### Removed
 - Terrain map layer (Topo is the only layer). Tiles already downloaded under `terrain/` in the tile directory are no longer used and can be deleted.
 - Admin token protection.
