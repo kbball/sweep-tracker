@@ -49,6 +49,16 @@ func (m *Maps) Status() RefreshStatus {
 // Wait blocks until a running refresh finishes (used by the CLI and tests).
 func (m *Maps) Wait() { m.wg.Wait() }
 
+// Clear deletes every stored tile. It is refused while a refresh is running.
+func (m *Maps) Clear() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.status.Running {
+		return errors.Join(domain.ErrInvalid, errors.New("refresh in progress"))
+	}
+	return m.store.Clear()
+}
+
 // Plan computes the bounding box that a refresh for the event would cover.
 func (m *Maps) Plan(ctx context.Context, eventID string, bufferM float64) (domain.BBox, error) {
 	e, err := m.events.Get(ctx, eventID)

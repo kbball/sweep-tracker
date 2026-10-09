@@ -1,4 +1,4 @@
-import { ageLabel, fadeOpacity, lastFix, mergePosition, metersToMiles, sweepState } from './format'
+import { ageLabel, eventTiming, fadeOpacity, formatBytes, lastFix, mergePosition, metersToMiles, sweepState } from './format'
 import type { Position } from './types'
 
 const pos = (id: number, over: Partial<Position> = {}): Position => ({
@@ -40,5 +40,26 @@ describe('format', () => {
     expect(mergePosition(base, pos(2), 8)).toBe(base)
     expect(mergePosition(base, pos(3), 2).map((p) => p.id)).toEqual([3, 2])
     expect(mergePosition(base, pos(0, { time: new Date(0).toISOString() }), 8)).toHaveLength(3)
+  })
+})
+
+describe('eventTiming', () => {
+  it('compares the event day with today', () => {
+    const now = new Date('2026-10-10T15:00:00Z')
+    expect(eventTiming('2026-10-10T00:00:00Z', now)).toBe('today')
+    expect(eventTiming('2026-10-11T00:00:00Z', now)).toBe('upcoming')
+    expect(eventTiming('2026-10-09T00:00:00Z', now)).toBe('past')
+  })
+})
+
+describe('formatBytes', () => {
+  it('uses readable decimal units', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(999)).toBe('999 B')
+    expect(formatBytes(1500)).toBe('1.5 KB')
+    expect(formatBytes(45_300_000)).toBe('45.3 MB')
+    expect(formatBytes(123_400_000)).toBe('123 MB')
+    expect(formatBytes(2_500_000_000)).toBe('2.5 GB')
+    expect(formatBytes(3e15)).toBe('3000 TB')
   })
 })

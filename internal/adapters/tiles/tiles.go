@@ -38,11 +38,6 @@ var DefaultSources = []Source{
 		URL:         "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
 		Attribution: "USGS The National Map", MinZoom: 0, MaxZoom: 16,
 	},
-	{
-		ID: "terrain", Name: "Terrain",
-		URL:         "https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}",
-		Attribution: "USGS The National Map", MinZoom: 0, MaxZoom: 15,
-	},
 }
 
 // MaxTilesPerLayer guards against accidentally requesting a continent.
@@ -63,10 +58,46 @@ func (s *Store) path(layer string, z, x, y int) string {
 func (s *Store) Layers() []domain.MapLayer {
 	out := make([]domain.MapLayer, len(s.sources))
 	for i, src := range s.sources {
+		n, size := s.usage(src.ID)
+		lo, hi := s.tileZooms(src.ID)
 		out[i] = domain.MapLayer{ID: src.ID, Name: src.Name, Attribution: src.Attribution,
-			MinZoom: src.MinZoom, MaxZoom: src.MaxZoom, TileCount: s.Count(src.ID)}
+			MinZoom: src.MinZoom, MaxZoom: src.MaxZoom, TileCount: n, SizeBytes: size, MinTileZoom: lo, MaxTileZoom: hi}
 	}
 	return out
+}
+
+// tileZooms returns the shallowest and deepest zoom directories of the layer that hold a tile.
+func (s *Store) tileZooms(layer string) (lo, hi int) {
+	dirs, err := os.ReadDir(filepath.Join(s.root, layer))
+	if err != nil {
+		return 0, 0
+	}
+	found := false
+	for _, d := range dirs {
+		z, err := strconv.Atoi(d.Name())
+		if err != nil || !d.IsDir() {
+			continue
+		}
+		hasTile := false
+		_ = filepath.WalkDir(filepath.Join(s.root, layer, d.Name()), func(_ string, e fs.DirEntry, err error) error {
+			if err == nil && !e.IsDir() && strings.HasSuffix(e.Name(), ".tile") {
+				hasTile = true
+				return fs.SkipAll
+			}
+			return nil
+		})
+		if !hasTile {
+			continue
+		}
+		if !found || z < lo {
+			lo = z
+		}
+		if !found || z > hi {
+			hi = z
+		}
+		found = true
+	}
+	return lo, hi
 }
 
 func (s *Store) known(layer string) bool {
@@ -90,17 +121,36 @@ func (s *Store) Tile(layer string, z, x, y int) (io.ReadCloser, error) {
 }
 
 func (s *Store) Count(layer string) int {
+	n, _ := s.usage(layer)
+	return n
+}
+
+// usage returns the number of stored tiles of a layer and the bytes they occupy.
+func (s *Store) usage(layer string) (tiles int, bytes int64) {
 	if !s.known(layer) {
-		return 0
+		return 0, 0
 	}
-	n := 0
 	_ = filepath.WalkDir(filepath.Join(s.root, layer), func(_ string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(d.Name(), ".tile") {
-			n++
+		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".tile") {
+			return nil
 		}
+		if info, err := d.Info(); err == nil {
+			bytes += info.Size()
+		}
+		tiles++
 		return nil
 	})
-	return n
+	return tiles, bytes
+}
+
+// Clear removes all stored tiles for every known layer.
+func (s *Store) Clear() error {
+	for _, src := range s.sources {
+		if err := os.RemoveAll(filepath.Join(s.root, src.ID)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) put(layer string, z, x, y int, r io.Reader) error {

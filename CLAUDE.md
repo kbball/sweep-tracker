@@ -1,6 +1,6 @@
 # Sweep Tracker – project rules
 
-Shows the location of race "sweep" teams (last runners on course, removing flagging) on an offline topo/terrain map, fed by Meshcore trackers via MQTT.
+Shows the location of race "sweep" teams (last runners on course, removing flagging) on an offline topo map, fed by Meshcore trackers via MQTT.
 
 ## Architecture (hexagonal)
 - `internal/domain` – entities and pure logic. No imports from other internal packages.

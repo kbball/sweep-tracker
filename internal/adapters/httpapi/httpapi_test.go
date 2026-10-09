@@ -70,7 +70,7 @@ func expect(t *testing.T, got, want int, body []byte) {
 
 func TestEventFlow(t *testing.T) {
 	e := setup(t)
-	c, b := e.do(t, "GET", "/healthz", "")
+	c, b := e.do(t, "GET", "/api/healthz", "")
 	expect(t, c, 200, b)
 	c, b = e.do(t, "GET", "/api/config", "")
 	if !strings.Contains(string(b), `"9.9.9"`) {
@@ -207,15 +207,22 @@ func TestTilesAndMaps(t *testing.T) {
 	}
 
 	x, y := tiles.TileXY(39.705, -105, 9)
-	for _, p := range []string{"/tiles/topo/9/%d/%d.png", "/tiles/topo/9/%d/%d"} {
+	for _, p := range []string{"/api/tiles/topo/9/%d/%d.png", "/api/tiles/topo/9/%d/%d"} {
 		c, b = e.do(t, "GET", sprintf(p, x, y), "")
 		if c != 200 || !strings.HasPrefix(string(b), "\x89PNG") {
 			t.Fatalf("%d %q", c, b)
 		}
 	}
-	c, b = e.do(t, "GET", "/tiles/topo/9/1/1", "")
+	c, b = e.do(t, "GET", "/api/tiles/topo/9/1/1", "")
 	expect(t, c, 404, b)
-	c, b = e.do(t, "GET", "/tiles/topo/a/1/1", "")
+	c, b = e.do(t, "DELETE", "/api/maps", "")
+	expect(t, c, 204, b)
+	c, b = e.do(t, "GET", sprintf("/api/tiles/topo/9/%d/%d", x, y), "")
+	expect(t, c, 404, b)
+	if maps.Layers()[0].TileCount != 0 {
+		t.Fatal("tiles not cleared")
+	}
+	c, b = e.do(t, "GET", "/api/tiles/topo/a/1/1", "")
 	expect(t, c, 404, b)
 }
 

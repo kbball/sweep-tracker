@@ -1,8 +1,8 @@
 # Sweep Tracker
 
-Shows where the sweep teams (the last runners on course, who make sure everyone is off the course and remove flagging) are, on an offline topo/terrain map. Trackers report over [Meshcore](https://meshcore.co.uk); a Meshcore→MQTT bridge publishes their messages to a topic this app subscribes to.
+Shows where the sweep teams (the last runners on course, who make sure everyone is off the course and remove flagging) are, on an offline topo map. Trackers report over [Meshcore](https://meshcore.co.uk); a Meshcore→MQTT bridge publishes their messages to a topic this app subscribes to.
 
-- Runs fully offline once maps are downloaded (USGS Topo and Terrain tiles, US coverage only)
+- Runs fully offline once maps are downloaded (USGS Topo tiles, US coverage only)
 - Multiple sweep teams at once, each with its own label and colour
 - Course from a GPX file: track line plus waypoints/aid stations
 - Latest position at full strength; earlier reports fade out down the list and on the map
@@ -36,7 +36,7 @@ There is no login: anyone who can reach the server can use the admin page, so ke
 ## Using it
 
 1. **Admin → create an event.** Upload the course GPX, then add the trackers. Any tracker heard on MQTT shows up in the picker; set a label and colour for each sweep team.
-2. **While online, download maps** (Admin → *Download / refresh maps*, or `sweeptracker maps download --event <id>`). Tiles for the course area are stored in `SWEEP_TILE_DIR` at zoom 6–12 by default (adjustable); re-run any time to refresh. Existing tiles are skipped.
+2. **While online, download maps** (Admin → *Download / refresh maps*, or `sweeptracker maps download --event <id>`). Tiles for the course area are stored in `SWEEP_TILE_DIR` at zoom 6–15 by default (adjustable); re-run any time to refresh. Existing tiles are skipped.
 3. **In the field everything runs offline.** Open the event page for the live map.
 4. **Share with another aid station:** *Export event to share* downloads a `.sweep.json` (event, course, tracker assignments). Import it on their instance, where they download their own maps.
 
@@ -66,6 +66,20 @@ cd web && npm ci && npm run cover        # frontend tests, 80% thresholds
 make build                               # frontend + single binary in bin/
 ```
 
-Run locally: set `SWEEP_DATABASE_URL`, `./bin/sweeptracker serve`. For frontend development run `npm run dev` in `web/` (proxies `/api` and `/tiles` to :8080). Database migrations (Goose) are embedded and applied at startup.
+Run locally: set `SWEEP_DATABASE_URL`, `./bin/sweeptracker serve`. For frontend development run `npm run dev` in `web/` (serves the UI on :5173 and proxies `/api` to :8080). Database migrations (Goose) are embedded and applied at startup.
+
+### Demo / QA simulator
+
+`sweeptracker simulate` walks fake sweep teams along an event's course and publishes their positions to the MQTT broker, so the whole pipeline (broker → server → live map) is exercised without hardware. The server must be subscribed to the same broker (`SWEEP_MQTT_BROKER`).
+
+```sh
+docker run -d --rm --name sweep-mqtt -p 1883:1883 eclipse-mosquitto:2 mosquitto -c /mosquitto-no-auth.conf
+SWEEP_MQTT_BROKER=tcp://localhost:1883 ./bin/sweeptracker serve          # in one terminal
+SWEEP_MQTT_BROKER=tcp://localhost:1883 ./bin/sweeptracker simulate --event <id> --speedup 60 --interval 2s
+```
+
+It uses the trackers assigned to the event (or `--trackers A,B`), `--speed-kmh` (default 5), `--stagger-m` to start extra teams further along, and `--server` (default `http://localhost:8080`) to read the event.
+
+The UI font (DM Sans, SIL OFL 1.1) is bundled via `@fontsource-variable/dm-sans`, so nothing is fetched from the internet at runtime.
 
 Layout (hexagonal): `internal/domain` → `internal/app` (use cases + ports) → `internal/adapters/*` (postgres, mqtt, httpapi, gpx, tiles, memory); `cmd/sweeptracker` wires it together. See `CLAUDE.md` for the project rules, `plan.md` for remaining work and `CHANGELOG.md` for changes. Versioning is semantic; the version lives in `VERSION`.

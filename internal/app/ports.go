@@ -48,6 +48,7 @@ type TileStore interface {
 	Layers() []domain.MapLayer
 	Tile(layer string, z, x, y int) (io.ReadCloser, error)
 	Count(layer string) int
+	Clear() error
 }
 
 // TileDownloader fetches tiles for a layer into the store.

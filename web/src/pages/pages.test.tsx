@@ -10,7 +10,7 @@ vi.mock('react-leaflet', async () => (await import('../test/leafletMock')).leafl
 class FakeES { onopen?: () => void; onerror?: () => void; addEventListener() {} close() {} }
 
 const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>)
-const maps = { layers: [{ id: 'topo', name: 'Topo', attribution: '', minZoom: 0, maxZoom: 16, tileCount: 1234 }], status: { running: false, done: 0, total: 0 } }
+const maps = { layers: [{ id: 'topo', name: 'Topo', attribution: '', minZoom: 0, maxZoom: 16, tileCount: 1234, sizeBytes: 45_300_000, minTileZoom: 6, maxTileZoom: 12 }], status: { running: false, done: 0, total: 0 } }
 
 beforeEach(() => {
   vi.stubGlobal('EventSource', FakeES)
@@ -25,6 +25,21 @@ describe('HomePage', () => {
     vi.spyOn(api, 'listEvents').mockResolvedValue([event()])
     at('/')
     expect(await screen.findByRole('link', { name: 'Test 50K' })).toHaveAttribute('href', '/e/e1')
+  })
+  it('shows course, waypoint and team info on each event card', async () => {
+    vi.spyOn(api, 'listEvents').mockResolvedValue([
+      event({ date: new Date().toISOString() }),
+      event({ id: 'e2', name: 'Old 10K', date: '2020-01-01T00:00:00Z', course: null, trackers: [] }),
+    ])
+    at('/')
+    expect(await screen.findByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('10.0 mi')).toBeInTheDocument()
+    expect(screen.getByText('2 waypoints')).toBeInTheDocument()
+    expect(screen.getByText('1 team')).toBeInTheDocument()
+    expect(screen.getByText('Past')).toBeInTheDocument()
+    expect(screen.getByText('No course')).toBeInTheDocument()
+    expect(screen.getByText('0 teams')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin')
   })
   it('shows empty state and errors', async () => {
     vi.spyOn(api, 'listEvents').mockResolvedValueOnce([])
@@ -91,7 +106,7 @@ describe('AdminPage', () => {
     const del = vi.spyOn(api, 'deleteEvent').mockResolvedValue()
     const update = vi.spyOn(api, 'updateEvent').mockResolvedValue(event({ name: 'Renamed' }))
     at('/admin')
-    await u.click(await screen.findByRole('button', { name: 'Test 50K' }))
+    await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
     expect(screen.getByDisplayValue('Test 50K')).toBeInTheDocument()
     expect(screen.getByText(/Loop: 10.0 mi, 2 waypoints/)).toBeInTheDocument()
 
@@ -106,7 +121,28 @@ describe('AdminPage', () => {
     expect(create).toHaveBeenCalled()
 
     await u.click(screen.getByRole('button', { name: 'Delete Test 50K' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Test 50K?')
+    await u.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(del).not.toHaveBeenCalled()
+    await u.click(screen.getByRole('button', { name: 'Delete Test 50K' }))
+    await u.click(screen.getByRole('button', { name: 'Delete event' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(del).toHaveBeenCalledWith('e1')
+  })
+
+  it('gives each event explicit View, Edit and Delete actions', async () => {
+    const u = userEvent.setup()
+    at('/admin')
+    expect(await screen.findByRole('link', { name: 'View Test 50K' })).toHaveAttribute('href', '/e/e1')
+    const edit = screen.getByRole('button', { name: 'Edit Test 50K' })
+    expect(edit).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByText('Editing')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Delete Test 50K' })).toBeInTheDocument()
+    await u.click(edit)
+    expect(edit).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Editing')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Test 50K')).toBeInTheDocument() // the editor opened
   })
 
   it('edits trackers, uploads a course and reports errors', async () => {
@@ -114,7 +150,7 @@ describe('AdminPage', () => {
     const update = vi.spyOn(api, 'updateEvent').mockResolvedValue(event())
     const upload = vi.spyOn(api, 'uploadCourse').mockRejectedValueOnce(new Error('bad gpx')).mockResolvedValue(event())
     at('/admin')
-    await u.click(await screen.findByRole('button', { name: 'Test 50K' }))
+    await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
 
     await u.selectOptions(screen.getByLabelText('Add tracker'), 'sw2')
     expect(screen.getByLabelText('Label for sw2')).toHaveValue('sw2')
@@ -122,8 +158,19 @@ describe('AdminPage', () => {
     await u.clear(screen.getByLabelText('Label for sw1'))
     await u.type(screen.getByLabelText('Label for sw1'), 'A')
     await u.click(screen.getAllByRole('button', { name: 'Remove' })[0])
+    // define a sweep before it has ever been heard on the mesh
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+    await u.type(screen.getByLabelText('New tracker name'), '  Sweep9 {enter}')
+    expect(screen.getByLabelText('Label for Sweep9')).toHaveValue('Sweep9')
+    expect(screen.getByLabelText('New tracker name')).toHaveValue('')
+    await u.type(screen.getByLabelText('New tracker name'), 'sw2')
+    await u.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('sw2 is already on this event')
     await u.click(screen.getByRole('button', { name: 'Save event' }))
-    expect(update.mock.calls[0][1].trackers).toEqual([{ trackerName: 'sw2', label: 'sw2', color: '#00ff00' }])
+    expect(update.mock.calls[0][1].trackers).toEqual([
+      { trackerName: 'sw2', label: 'sw2', color: '#00ff00' },
+      { trackerName: 'Sweep9', label: 'Sweep9', color: '' },
+    ])
 
     const file = new File(['<gpx/>'], 'c.gpx')
     await u.upload(screen.getByLabelText('GPX file'), file)
@@ -161,10 +208,10 @@ describe('MapsPanel via admin', () => {
     const u = userEvent.setup()
     const refresh = vi.spyOn(api, 'refreshMaps').mockResolvedValue({ running: true, done: 0, total: 0 })
     at('/admin')
-    expect(await screen.findByText(/Topo: 1,234 tiles/)).toBeInTheDocument()
+    expect(await screen.findByText(/Topo: 1,234 tiles · 45.3 MB/)).toBeInTheDocument()
     const btn = screen.getByRole('button', { name: /Download/ })
     expect(btn).toBeDisabled()
-    await u.click(await screen.findByRole('button', { name: 'Test 50K' }))
+    await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
     fireEvent.change(screen.getByLabelText('Min zoom'), { target: { value: '9' } })
     fireEvent.change(screen.getByLabelText('Max zoom'), { target: { value: '12' } })
     fireEvent.change(screen.getByLabelText('Buffer (m)'), { target: { value: '500' } })
@@ -175,12 +222,34 @@ describe('MapsPanel via admin', () => {
     expect(await screen.findByText(/topo: 5\/10/)).toBeInTheDocument()
     expect(screen.getByLabelText('Map download progress')).toHaveAttribute('value', '5')
   })
+  it('clears offline maps only after confirmation', async () => {
+    const u = userEvent.setup()
+    const clear = vi.spyOn(api, 'clearMaps').mockResolvedValue(undefined)
+    at('/admin')
+    await u.click(await screen.findByRole('button', { name: 'Clear offline maps' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('deletes all downloaded map tiles')
+    await u.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(clear).not.toHaveBeenCalled()
+    await u.click(screen.getByRole('button', { name: 'Clear offline maps' }))
+    await u.click(screen.getByRole('button', { name: 'Clear maps' }))
+    expect(clear).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('shows an error when clearing fails', async () => {
+    const u = userEvent.setup()
+    vi.spyOn(api, 'clearMaps').mockRejectedValue(new Error('refresh in progress'))
+    at('/admin')
+    await u.click(await screen.findByRole('button', { name: 'Clear offline maps' }))
+    await u.click(screen.getByRole('button', { name: 'Clear maps' }))
+    expect(await screen.findByText('refresh in progress')).toBeInTheDocument()
+  })
   it('reports refresh failure and backend error', async () => {
     const u = userEvent.setup()
     vi.spyOn(api, 'refreshMaps').mockRejectedValue(new Error('event has no course'))
     vi.spyOn(api, 'maps').mockResolvedValue({ ...maps, status: { running: false, done: 0, total: 0, error: 'topo: HTTP 500' } })
     at('/admin')
-    await u.click(await screen.findByRole('button', { name: 'Test 50K' }))
+    await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
     await u.click(screen.getByRole('button', { name: /Download/ }))
     expect(await screen.findByText('event has no course')).toBeInTheDocument()
     expect(screen.getByText('topo: HTTP 500')).toBeInTheDocument()

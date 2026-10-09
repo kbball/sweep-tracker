@@ -197,4 +197,38 @@ type MapLayer struct {
 	MinZoom     int    `json:"minZoom"`
 	MaxZoom     int    `json:"maxZoom"`
 	TileCount   int    `json:"tileCount"`
+	SizeBytes   int64  `json:"sizeBytes"` // disk space used by the stored tiles
+	// MinTileZoom and MaxTileZoom are the shallowest and deepest zoom levels with downloaded tiles (0 if none).
+	MinTileZoom int `json:"minTileZoom"`
+	MaxTileZoom int `json:"maxTileZoom"`
+}
+
+// PointAt returns the location distM metres along the track, clamped to its
+// ends, with elevation interpolated when both neighbours have it.
+func PointAt(track []Point, distM float64) Point {
+	if len(track) == 0 {
+		return Point{}
+	}
+	if distM <= 0 {
+		return track[0]
+	}
+	for i := 1; i < len(track); i++ {
+		seg := Haversine(track[i-1], track[i])
+		if distM > seg {
+			distM -= seg
+			continue
+		}
+		f := 0.0
+		if seg > 0 {
+			f = distM / seg
+		}
+		a, b := track[i-1], track[i]
+		p := Point{Lat: a.Lat + (b.Lat-a.Lat)*f, Lon: a.Lon + (b.Lon-a.Lon)*f}
+		if a.Ele != nil && b.Ele != nil {
+			e := *a.Ele + (*b.Ele-*a.Ele)*f
+			p.Ele = &e
+		}
+		return p
+	}
+	return track[len(track)-1]
 }

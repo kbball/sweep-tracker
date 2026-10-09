@@ -83,3 +83,29 @@ func TestPositionValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPointAt(t *testing.T) {
+	lo, hi := 100.0, 200.0
+	track := []Point{{Lat: 0, Lon: 0, Ele: &lo}, {Lat: 0, Lon: 1, Ele: &hi}, {Lat: 0, Lon: 2}}
+	seg := Haversine(track[0], track[1])
+	if p := PointAt(track, -5); p != track[0] {
+		t.Fatalf("before start: %+v", p)
+	}
+	mid := PointAt(track, seg/2)
+	if math.Abs(mid.Lon-0.5) > 1e-6 || mid.Ele == nil || math.Abs(*mid.Ele-150) > 1e-6 {
+		t.Fatalf("midpoint: %+v", mid)
+	}
+	if p := PointAt(track, seg*1.5); math.Abs(p.Lon-1.5) > 1e-3 || p.Ele != nil {
+		t.Fatalf("second segment: %+v", p)
+	}
+	if p := PointAt(track, 1e9); p != track[2] {
+		t.Fatalf("past end: %+v", p)
+	}
+	if p := PointAt(nil, 10); p != (Point{}) {
+		t.Fatalf("empty: %+v", p)
+	}
+	dup := []Point{{Lat: 1, Lon: 1}, {Lat: 1, Lon: 1}, {Lat: 1, Lon: 2}}
+	if p := PointAt(dup, 0.0001); p.Lat != 1 {
+		t.Fatalf("zero-length segment: %+v", p)
+	}
+}
