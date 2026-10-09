@@ -35,11 +35,16 @@ There is no login: anyone who can reach the server can use the admin page, so ke
 
 ## Using it
 
-1. **Admin → create an event.** Upload the course GPX, then add the trackers. Any tracker heard on MQTT shows up in the picker; set a label and colour for each sweep team.
-2. **Aid stations and cutoffs** (Admin → *Aid stations*). Set the event date and start time, then fill the table: one row each time the course goes by an aid station (an out-and-back passes each twice). Paste the table from the runner handbook PDF under *Fill from the runner handbook*, or type it. Each row takes an official mile, a cutoff (like `6PM Friday`, or `+6h` for hours after the start), pacer and crew/drop-bag. Untick a row that is just the trail running close by. Each sweep team can start from a stop (for example leaving Dry Creek), which also settles where it is on an out-and-back course.
-3. **While online, download maps** (Admin → *Download / refresh maps*, or `sweeptracker maps download --event <id>`). Tiles for the course area are stored in `SWEEP_TILE_DIR` at zoom 6–15 by default (adjustable); re-run any time to refresh. Existing tiles are skipped.
-4. **In the field everything runs offline.** Open the event page for the live map.
-5. **Share with another aid station:** Admin → *Share* downloads the event file (`.sweep.json`: event, start time, course, aid station table, teams and where each starts) to import on their instance, where they download their own maps. The aid station table is also available as a CSV for crews and volunteers.
+The **Setup guide** at the top of Admin lists these steps in order, shows which are done, and jumps to each section. Each step needs the ones before it.
+
+1. **Event details.** Admin → create an event, then set its date (the first day of the race) and start time. Cutoffs show as clock times from these.
+2. **Course.** Upload the course GPX. Aid stations, team starts and maps all depend on it.
+3. **Aid stations and cutoffs.** One row each time the course goes by an aid station (an out-and-back passes each twice). Paste the table from the runner handbook PDF under *Fill from the runner handbook*, or type it: official mile, cutoff (like `6PM Friday`, or `+6h` for hours after the start), pacer and crew/drop-bag. Untick a row that is just the trail running close by.
+4. **Sweep teams.** Add each team's tracker name (it can be typed before the tracker has been heard; any tracker heard on MQTT also shows up in the picker), a label and a colour. On an out-and-back course, say where each team starts (for example leaving Dry Creek) so it is placed on the right leg.
+5. **Offline maps, while online** (Admin → *Download / refresh maps*, or `sweeptracker maps download --event <id>`). Tiles for the course area are stored in `SWEEP_TILE_DIR` at zoom 6–15 by default (adjustable); re-run any time to refresh. Existing tiles are skipped.
+6. **Check the trackers.** Each team should be heard on the mesh before race day (or try the simulator below).
+7. **In the field everything runs offline.** Open the event page for the live map.
+8. **Share with another aid station:** Admin → *Share* downloads the event file (`.sweep.json`: event, start time, course, aid station table, teams and where each starts) to import on their instance, where they download their own maps. The aid station table is also available as a CSV for crews and volunteers.
 
 ### Tracker messages
 

@@ -52,6 +52,8 @@ export function EventEditor({ event, known, onChange }: Props) {
   return (
     <fieldset className="panel">
       <legend>Event</legend>
+      <div id="setup-details">
+        <h3>1 · Event details</h3>
       <label>Name <input value={name} onChange={(e) => setName(e.target.value)} /></label>
       <div className="row">
         <label>Date <input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
@@ -59,7 +61,24 @@ export function EventEditor({ event, known, onChange }: Props) {
       </div>
       <label>Notes <textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
 
-      <h3>Sweep teams</h3>
+        <button type="button" className="primary save" onClick={() => run(() => api.updateEvent(event.id, { name, date: new Date(date).toISOString(), startTime, notes, trackers: event.trackers }), 'Details saved')}>
+          Save details
+        </button>
+      </div>
+
+      <h3 id="setup-course">2 · Course</h3>
+      <p>{event.course
+        ? `${event.course.name || 'Course'}: ${metersToMiles(event.course.distanceM).toFixed(1)} mi, ${event.course.waypoints.length} waypoints`
+        : 'No course uploaded'}</p>
+      <label>GPX file <input type="file" accept=".gpx,application/gpx+xml,text/xml"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => api.uploadCourse(event.id, f), 'Course uploaded') }} /></label>
+
+      {event.course && event.course.waypoints.length > 0 && (
+        <StopsEditor course={event.course} date={date} startTime={startTime} onStartTime={setStartTime} onSave={saveStops} />
+      )}
+
+      <div id="setup-teams">
+      <h3>4 · Sweep teams</h3>
       {trackers.map((t, i) => (
         <div className="team-row" key={t.trackerName}>
           <code>{t.trackerName}</code>
@@ -86,22 +105,12 @@ export function EventEditor({ event, known, onChange }: Props) {
       </form>
       <p className="muted">The name must match what the tracker sends (e.g. <code>Sweep1</code>); it starts reporting once heard on the mesh.</p>
 
-      <button type="button" className="primary save" onClick={() => run(() => api.updateEvent(event.id, { name, date: new Date(date).toISOString(), startTime, notes, trackers }), 'Saved')}>
-        Save event
-      </button>
+        <button type="button" className="primary save" onClick={() => run(() => api.updateEvent(event.id, { name: event.name, date: event.date, startTime: event.startTime ?? '', notes: event.notes, trackers }), 'Teams saved')}>
+          Save teams
+        </button>
+      </div>
 
-      <h3>Course</h3>
-      <p>{event.course
-        ? `${event.course.name || 'Course'}: ${metersToMiles(event.course.distanceM).toFixed(1)} mi, ${event.course.waypoints.length} waypoints`
-        : 'No course uploaded'}</p>
-      <label>GPX file <input type="file" accept=".gpx,application/gpx+xml,text/xml"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => api.uploadCourse(event.id, f), 'Course uploaded') }} /></label>
-
-      {event.course && event.course.waypoints.length > 0 && (
-        <StopsEditor course={event.course} date={date} startTime={startTime} onStartTime={setStartTime} onSave={saveStops} />
-      )}
-
-      <h3>Share</h3>
+      <h3 id="setup-share">Share</h3>
       <p className="muted">Send the event to someone else, or get the aid station table into a spreadsheet.</p>
       <div className="row">
         <a className="btn" href={api.exportUrl(event.id)} download>Event file (.sweep.json)</a>

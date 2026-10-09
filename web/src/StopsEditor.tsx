@@ -101,7 +101,7 @@ export function StopsEditor({ course, date, startTime, onStartTime, onSave }: Pr
 
   return (
     <>
-      <h3>Aid stations</h3>
+      <h3 id="setup-stops">3 · Aid stations</h3>
       <p className="muted">
         One row for each time the course goes by an aid station (an out-and-back passes each twice). Untick a row that is just the trail
         running close by. Cutoffs are times such as <code>6PM Friday</code>, or hours after the start such as <code>+6h</code>.

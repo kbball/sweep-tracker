@@ -3,7 +3,7 @@ import { api } from './api'
 import { formatBytes } from './format'
 import type { MapsInfo } from './types'
 
-export function MapsPanel({ eventId, pollMs = 2000 }: { eventId?: string; pollMs?: number }) {
+export function MapsPanel({ eventId, pollMs = 2000, onInfo }: { eventId?: string; pollMs?: number; onInfo?: (info: MapsInfo) => void }) {
   const [info, setInfo] = useState<MapsInfo>()
   const [min, setMin] = useState(6)
   const [max, setMax] = useState(15)
@@ -11,7 +11,7 @@ export function MapsPanel({ eventId, pollMs = 2000 }: { eventId?: string; pollMs
   const [error, setError] = useState<string>()
   const [confirming, setConfirming] = useState(false)
 
-  const load = useCallback(() => api.maps().then(setInfo).catch((e: Error) => setError(e.message)), [])
+  const load = useCallback(() => api.maps().then((m) => { setInfo(m); onInfo?.(m) }).catch((e: Error) => setError(e.message)), [onInfo])
   useEffect(() => { load() }, [load])
   const running = info?.status.running
   useEffect(() => {
@@ -33,8 +33,8 @@ export function MapsPanel({ eventId, pollMs = 2000 }: { eventId?: string; pollMs
 
   const st = info?.status
   return (
-    <fieldset className="panel">
-      <legend>Offline maps</legend>
+    <fieldset className="panel" id="setup-maps">
+      <legend>5 · Offline maps</legend>
       <ul className="layer-list">{info?.layers.map((l) => <li key={l.id} className="chip">{l.name}: {l.tileCount.toLocaleString()} tiles · {formatBytes(l.sizeBytes)} (zoom {l.minZoom}–{l.maxZoom})</li>)}</ul>
       <p className="muted">Refreshing needs an internet connection. It downloads tiles around the selected event&apos;s course.</p>
       <div className="row end">

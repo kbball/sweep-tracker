@@ -3,6 +3,7 @@ Format: Keep a Changelog; versioning: Semantic Versioning.
 
 ## [Unreleased]
 ### Added
+- Admin setup guide: a checklist at the top of Admin that follows the order an event is best set up in (details and start time, course, aid stations and cutoffs, sweep teams, offline maps, trackers reporting). Each step shows Done, To do, Waiting (on an earlier step) or Optional, says what to do next, and has a Go button to its section; before an event is chosen it outlines the order. The sections below are numbered to match.
 - Aid station table (Admin → Aid stations): for each time the course goes by a station, an official mile, cutoff, pacer flag and crew/drop-bag note, plus a name. Fill it by pasting the table from the runner handbook PDF (fields are recognised by shape, so lost blank cells don't matter; distances are cross-checked) or by typing. Cutoffs are times like "6PM Friday" or hours after the start ("+6h"). Re-uploading a corrected GPX keeps these details.
 - Event start time (Admin), used to show cutoffs as clock times; it can be worked out from the first row of a pasted table.
 - Each sweep team has its own starting point (a stop, such as leaving Dry Creek or Snake Creek after the final cutoff). Teams are only placed from there on, which also settles a team's very first report.
@@ -10,6 +11,7 @@ Format: Keep a Changelog; versioning: Semantic Versioning.
 - Export options: the event file (`.sweep.json`, everything needed to recreate the event, now including the aid station table, start time and team starts) and the aid station table as CSV for crews and volunteers.
 - `sweeptracker simulate` starts each team at its start point from the event (override with `--start-mile`).
 ### Changed
+- Admin: each section of an event (details, aid stations, sweep teams) saves on its own, so uploading the course or saving the aid stations no longer discards a start time or team edits typed above it. "Save event" is now "Save details" and "Save teams".
 - Each team's report history is a collapsible "Recent reports" section (closed by default), and its rows no longer wrap awkwardly in the narrow panel.
 - Out-and-back courses: each aid station now has one marker per time the course passes it (detected within 75 m, shown as "(out)" and "(in)"). Admin → Aid stations lists the detected passes so you can untick ones that are just the trail running close by (stations with more than two passes are flagged for review). Existing courses get their passes detected when read.
 - A sweep team's mile marker and its place on the course strip now follow its direction of travel: it is placed at the pass that is the smallest step forward along the course from where it was a moment ago, so on an out-and-back a team heading home is placed on the return leg (and one arriving at a finish that is also the start is placed at the finish). A team resting at an aid station is judged by how it arrived (movement within the last 6 hours), reports from more than 12 hours before the event date are ignored, and passes you unticked in Admin are not places a team can be.
