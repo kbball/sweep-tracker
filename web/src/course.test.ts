@@ -1,4 +1,4 @@
-import { angleBetween, bearing, courseStats, cumulative, haversine, passesOf, teamProgress } from './course'
+import { courseStats, cumulative, haversine, passesOf, teamProgress } from './course'
 import { pos, track } from './test/fixtures'
 import type { Course, Point, TrackerHistory } from './types'
 
@@ -16,26 +16,6 @@ describe('geometry', () => {
     const cum = cumulative(loop)
     expect(cum[0]).toBe(0)
     expect(cum.at(-1)).toBeCloseTo(11120, -2)
-  })
-})
-
-describe('bearings', () => {
-  it('gives compass bearings and the angle between them', () => {
-    const o = { lat: 10, lon: 20 }
-    expect(bearing(o, { lat: 11, lon: 20 })).toBeCloseTo(0)
-    expect(bearing(o, { lat: 10, lon: 21 })).toBeCloseTo(90)
-    expect(bearing(o, { lat: 9, lon: 20 })).toBeCloseTo(180)
-    expect(bearing(o, { lat: 10, lon: 19 })).toBeCloseTo(270)
-    expect(angleBetween(350, 10)).toBe(20)
-    expect(angleBetween(0, 180)).toBe(180)
-    expect(angleBetween(90, 90)).toBe(0)
-  })
-  it('knows which way the course runs, including at its ends', () => {
-    const s = courseStats(course())!
-    expect(s.courseBearing(1000)).toBeCloseTo(0) // way out: north
-    expect(s.courseBearing(total - 1000)).toBeCloseTo(180) // way back: south
-    expect(s.courseBearing(0)).toBeCloseTo(0) // clamped at the start
-    expect(s.courseBearing(total)).toBeCloseTo(180) // and at the finish
   })
 })
 
@@ -126,6 +106,28 @@ describe('unticked passes', () => {
   })
 })
 
+describe('teamProgress at a curled finish', () => {
+  // Out along a road, back along the same road, then the last stretch curls past the start and doubles back on
+  // itself, so the final 100 m heads the opposite way to the team's overall approach.
+  const hook: Point[] = [{ lat: 0, lon: 0 }, { lat: 0.001, lon: -0.0002 }, { lat: -0.03, lon: -0.0002 }, { lat: 0.0012, lon: -0.0002 }, { lat: 0.0001, lon: 0.0001 }]
+  const stats = courseStats({ name: 'H', distanceM: 0, track: hook, waypoints: [] })!
+  const finish = cumulative(hook).at(-1)!
+  const fix = (id: number, lat: number, lon: number, minutes: number) =>
+    pos(id, { lat, lon, time: new Date(Date.UTC(2026, 9, 10, 8, minutes)).toISOString() })
+
+  it('places a team arriving at the finish at the finish, not back at the start', () => {
+    // 2.2 km before the finish heading home along the road, then at the finish: the straight line between them
+    // points north, but the course itself ends heading south-east.
+    const arriving = track({ positions: [fix(2, 0.0001, 0.0001, 20), fix(1, -0.0199, -0.0002, 0)] })
+    expect(teamProgress(stats, [arriving]).sw1).toBeCloseTo(finish, -1)
+  })
+
+  it('places a team on the way out at the start end', () => {
+    const leaving = track({ positions: [fix(2, -0.01, -0.0002, 20), fix(1, 0.0005, -0.0002, 0)] })
+    expect(teamProgress(stats, [leaving]).sw1).toBeLessThan(finish / 2)
+  })
+})
+
 describe('teamProgress', () => {
   const stats = courseStats(course())!
   const at = (id: number, lat: number, minutes: number, over = {}) =>
@@ -171,8 +173,8 @@ describe('teamProgress', () => {
     expect(teamProgress(stats, [team([at(2, 0.0285, 10 * 60), earlier])]).sw1).toBeCloseTo(3169, -2) // ten hours apart: no heading
   })
 
-  it('falls back to moving forward when the heading matches no pass', () => {
-    // Heading east, across the course: neither leg runs that way.
+  it('falls back to moving forward when the team moves sideways to the course', () => {
+    // Moving east, across the course: neither leg is a step forward or back.
     const sideways = [at(1, 0.03, 0), pos(2, { lat: 0.03, lon: 0.0006, time: new Date(Date.UTC(2026, 9, 10, 8, 10)).toISOString() })]
     expect(onEitherLeg(teamProgress(stats, [team([sideways[1], sideways[0]])]).sw1 - 1112)).toBe(true) // some pass near 0.03°
   })
