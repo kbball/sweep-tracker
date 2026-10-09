@@ -1,5 +1,7 @@
 export interface Point { lat: number; lon: number; ele?: number }
-export interface Waypoint extends Point { name: string; desc?: string; type?: string }
+/** A place the course goes by an aid station; `use` marks the passes that are real visits. */
+export interface Pass { distM: number; use: boolean }
+export interface Waypoint extends Point { name: string; desc?: string; type?: string; passes?: Pass[] }
 export interface Course { name: string; track: Point[]; waypoints: Waypoint[]; distanceM: number }
 export interface EventTracker { trackerName: string; label: string; color: string }
 export interface SweepEvent {

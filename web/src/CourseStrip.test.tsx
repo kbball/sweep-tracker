@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { courseStats, teamProgress } from './course'
 import { CourseStrip } from './CourseStrip'
 import { pos, track } from './test/fixtures'
 import type { Course } from './types'
@@ -16,15 +17,17 @@ describe('CourseStrip', () => {
   it('renders nothing without a usable course', () => {
     const { container, rerender } = render(<CourseStrip tracks={[]} />)
     expect(container).toBeEmptyDOMElement()
-    rerender(<CourseStrip course={course({ track: [] })} tracks={[]} />)
+    rerender(<CourseStrip stats={courseStats(course({ track: [] }))} tracks={[]} />)
     expect(container).toBeEmptyDOMElement()
   })
 
   it('shows length, aid stations on alternating rows and team positions', () => {
-    render(<CourseStrip course={course()} tracks={[
+    const stats = courseStats(course())
+    const tracks = [
       track({ positions: [pos(0, { lat: 40.05, lon: -105 })] }),
       track({ trackerName: 'sw2', label: 'Sweep 2', positions: [pos(0, { hasFix: false })] }),
-    ]} />)
+    ]
+    render(<CourseStrip stats={stats} tracks={tracks} progress={teamProgress(stats!, tracks)} />)
     expect(screen.getByText('6.9 mi')).toBeInTheDocument()
     expect(screen.getByText(/^Aid 1 · mi 1\.7$/)).toBeInTheDocument()
     expect(screen.getByText(/^Aid 2 · mi 5\.2$/)).toBeInTheDocument()
@@ -41,7 +44,7 @@ describe('CourseStrip', () => {
       { name: 'Aid A', lat: 40.0005, lon: -105 }, { name: 'Aid B', lat: 40.001, lon: -105 }, { name: 'Aid C', lat: 40.0015, lon: -105 },
       { name: 'Finish', lat: 40.1, lon: -105 },
     ] })
-    render(<CourseStrip course={c} tracks={[]} />)
+    render(<CourseStrip stats={courseStats(c)} tracks={[]} />)
     expect(screen.getByText(/^Start/)).toHaveStyle({ left: '0%' })
     expect(screen.getByText(/^Finish/)).toHaveStyle({ right: '0%' })
     expect(screen.getByText(/^Aid A/)).toBeInTheDocument()
@@ -51,14 +54,14 @@ describe('CourseStrip', () => {
 
   it('draws a flat line when the course has no elevation', () => {
     const flat = course({ track: course().track.map(({ lat, lon }) => ({ lat, lon })) })
-    const { container } = render(<CourseStrip course={flat} tracks={[]} />)
+    const { container } = render(<CourseStrip stats={courseStats(flat)} tracks={[]} />)
     expect(container.querySelector('.profile-fill')).toBeNull()
     expect(container.querySelector('line.profile-line')).not.toBeNull()
   })
 
   it('handles a course with constant elevation', () => {
     const level = course({ track: course().track.map((p) => ({ ...p, ele: 500 })) })
-    const { container } = render(<CourseStrip course={level} tracks={[]} />)
+    const { container } = render(<CourseStrip stats={courseStats(level)} tracks={[]} />)
     expect(container.querySelector('.profile-fill')).not.toBeNull()
   })
 })

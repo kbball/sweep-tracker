@@ -165,6 +165,52 @@ func TestEventsLifecycle(t *testing.T) {
 	}
 }
 
+func TestAidStationPasses(t *testing.T) {
+	ctx := context.Background()
+	s, repo := newEvents()
+	e, _ := s.Create(ctx, &domain.Event{Name: "Race"})
+	if _, err := s.SetPasses(ctx, e.ID, [][]bool{{true}}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal("no course yet")
+	}
+	if _, err := s.SetPasses(ctx, "nope", nil); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatal("missing event")
+	}
+	got, err := s.SetCourse(ctx, e.ID, strings.NewReader(sampleGPX))
+	if err != nil || len(got.Course.Waypoints[0].Passes) != 1 || !got.Course.Waypoints[0].Passes[0].Use {
+		t.Fatalf("passes are detected on upload: %v %+v", err, got.Course)
+	}
+	if _, err = s.SetPasses(ctx, e.ID, [][]bool{{true, true}}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal("wrong number of flags")
+	}
+	upd, err := s.SetPasses(ctx, e.ID, [][]bool{{false}})
+	if err != nil || upd.Course.Waypoints[0].Passes[0].Use {
+		t.Fatalf("%v %+v", err, upd)
+	}
+	if g, _ := s.Get(ctx, e.ID); g.Course.Waypoints[0].Passes[0].Use {
+		t.Fatal("the choice must be stored")
+	}
+
+	// A course stored before passes existed gets them when read, and keeps them when edited.
+	legacy := &domain.Event{ID: "old", Name: "Old", Course: &domain.Course{
+		Track:     []domain.Point{{Lat: 40, Lon: -105}, {Lat: 40.01, Lon: -105}},
+		Waypoints: []domain.Waypoint{{Name: "Aid", Point: domain.Point{Lat: 40.005, Lon: -105}}},
+	}}
+	_ = repo.Save(ctx, legacy)
+	if g, _ := s.Get(ctx, "old"); len(g.Course.Waypoints[0].Passes) != 1 {
+		t.Fatal("legacy course should get passes on read")
+	}
+	found := false
+	l, _ := s.List(ctx)
+	for _, ev := range l {
+		if ev.ID == "old" {
+			found = len(ev.Course.Waypoints[0].Passes) == 1
+		}
+	}
+	if !found {
+		t.Fatal("legacy course should get passes in lists")
+	}
+}
+
 func TestExportImport(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newEvents()

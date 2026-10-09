@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -105,6 +106,31 @@ func TestSimulateEndToEnd(t *testing.T) {
 			t.Fatalf("teams did not reach the finish: %+v", hist)
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestSimulateStartMile(t *testing.T) {
+	broker := startBroker(t)
+	srv := eventServer(t, simEvent())
+	env := envMap(map[string]string{"SWEEP_MQTT_BROKER": broker})
+	first := func(args ...string) string {
+		var out bytes.Buffer
+		if err := run(context.Background(), append([]string{"simulate", "--event", "e1", "--server", srv.URL, "--trackers", "One", "--interval", "1ms", "--speedup", "36000"}, args...), env, &out); err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(out.String(), "\n")
+		return lines[1] // line 0 is the banner
+	}
+	lat := func(msg string) float64 {
+		var f float64
+		if _, err := fmt.Sscanf(strings.SplitN(msg, ": ", 2)[1], "%f,", &f); err != nil {
+			t.Fatal(msg, err)
+		}
+		return f
+	}
+	atStart, midway := lat(first()), lat(first("--start-mile", "0.5"))
+	if midway <= atStart+0.002 { // half a mile is ~800 m, ~0.007° of latitude
+		t.Fatalf("start-mile had no effect: %v vs %v", midway, atStart)
 	}
 }
 

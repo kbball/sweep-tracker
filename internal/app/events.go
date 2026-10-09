@@ -29,10 +29,26 @@ func NewID() string {
 	return hex.EncodeToString(b)
 }
 
-func (s *Events) List(ctx context.Context) ([]domain.Event, error) { return s.repo.List(ctx) }
+// withPasses fills in aid-station passes for courses stored before they existed.
+func withPasses(e *domain.Event) *domain.Event {
+	e.Course.EnsurePasses()
+	return e
+}
+
+func (s *Events) List(ctx context.Context) ([]domain.Event, error) {
+	evs, err := s.repo.List(ctx)
+	for i := range evs {
+		withPasses(&evs[i])
+	}
+	return evs, err
+}
 
 func (s *Events) Get(ctx context.Context, id string) (*domain.Event, error) {
-	return s.repo.Get(ctx, id)
+	e, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return withPasses(e), nil
 }
 
 func (s *Events) Create(ctx context.Context, e *domain.Event) (*domain.Event, error) {
@@ -51,7 +67,7 @@ func (s *Events) Create(ctx context.Context, e *domain.Event) (*domain.Event, er
 // Update replaces the editable fields (name, date, notes, trackers); the
 // course is kept.
 func (s *Events) Update(ctx context.Context, id string, in *domain.Event) (*domain.Event, error) {
-	cur, err := s.repo.Get(ctx, id)
+	cur, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +94,22 @@ func (s *Events) SetCourse(ctx context.Context, id string, gpx io.Reader) (*doma
 	if err != nil {
 		return nil, err
 	}
+	c.EnsurePasses()
 	e.Course = c
+	e.UpdatedAt = s.now()
+	return e, s.repo.Save(ctx, e)
+}
+
+// SetPasses records which of each waypoint's passes are real aid-station
+// visits: use has one row per waypoint with one flag per pass.
+func (s *Events) SetPasses(ctx context.Context, id string, use [][]bool) (*domain.Event, error) {
+	e, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.Course.SetPassUse(use); err != nil {
+		return nil, err
+	}
 	e.UpdatedAt = s.now()
 	return e, s.repo.Save(ctx, e)
 }
@@ -104,6 +135,7 @@ func (s *Events) Import(ctx context.Context, data []byte) (*domain.Event, error)
 	e := b.Event
 	if e.Course != nil {
 		e.Course.DistanceM = domain.TrackDistance(e.Course.Track)
+		e.Course.EnsurePasses()
 	}
 	return s.Create(ctx, e)
 }

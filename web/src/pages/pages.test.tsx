@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { api } from '../api'
 import { App } from '../App'
-import { event, track } from '../test/fixtures'
+import { event, pos, track } from '../test/fixtures'
 
 vi.mock('react-leaflet', async () => (await import('../test/leafletMock')).leafletMock)
 
@@ -61,6 +61,24 @@ describe('MapPage', () => {
     expect(screen.getByText('Moving')).toBeInTheDocument()
     expect(screen.getByTestId('map')).toBeInTheDocument()
     expect(screen.getByTitle('Reconnecting')).toBeInTheDocument()
+  })
+  it('keeps a long history for progress but shows only the newest reports', async () => {
+    // An out-and-back course; the team has been out to the turnaround and is on its way home.
+    const course = {
+      name: 'OAB', distanceM: 0,
+      track: [...Array.from({ length: 51 }, (_, i) => ({ lat: i / 1000, lon: 0 })), ...Array.from({ length: 50 }, (_, i) => ({ lat: (49 - i) / 1000, lon: 0 }))],
+      waypoints: [{ name: 'Aid 1', lat: 0.02, lon: 0, passes: [{ distM: 2224, use: true }, { distM: 8896, use: true }] }],
+    }
+    const fixes = [0.01, 0.02, 0.03, 0.04, 0.05, 0.045, 0.04, 0.035, 0.03, 0.025, 0.021].map((lat, i) =>
+      pos(11 - i, { lat, lon: 0, time: new Date(Date.UTC(2026, 9, 10, 8, i * 10)).toISOString() }))
+    const getPositions = vi.spyOn(api, 'positions').mockResolvedValue([track({ positions: [...fixes].reverse() })]) // the API returns newest first
+    vi.spyOn(api, 'getEvent').mockResolvedValue(event({ course }))
+    at('/e/e1')
+    expect(await screen.findByText('Mile 5.5')).toBeInTheDocument() // 0.021° on the way back, not mile 1.3 on the way out
+    expect(getPositions).toHaveBeenCalledWith('e1', 500)
+    expect(screen.getAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(8) // only the newest 8 are listed
+    expect(screen.getByText(/^Aid 1 \(out\) · mi 1\.4$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Aid 1 \(in\) · mi 5\.5$/)).toBeInTheDocument()
   })
   it('prompts for a course when missing and ticks the clock', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -129,6 +147,32 @@ describe('AdminPage', () => {
     await u.click(screen.getByRole('button', { name: 'Delete event' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(del).toHaveBeenCalledWith('e1')
+  })
+
+  it('confirms which passes of each aid station are real visits', async () => {
+    const u = userEvent.setup()
+    const course = {
+      name: 'C', distanceM: 0, track: [{ lat: 0, lon: 0 }, { lat: 0.1, lon: 0 }],
+      waypoints: [
+        { name: 'Aid 1', lat: 0.02, lon: 0, passes: [{ distM: 2000, use: true }, { distM: 8000, use: true }] },
+        { name: 'Dry Creek', lat: 0.05, lon: 0, passes: [{ distM: 4000, use: true }, { distM: 5000, use: false }, { distM: 6000, use: false }, { distM: 7000, use: true }] },
+        { name: '', lat: 0.09, lon: 0 },
+      ],
+    }
+    vi.spyOn(api, 'listEvents').mockResolvedValue([event({ course })])
+    const save = vi.spyOn(api, 'setPasses').mockResolvedValue(event({ course }))
+    at('/admin')
+    await u.click(await screen.findByRole('button', { name: 'Edit Test 50K' }))
+    expect(screen.getAllByText('Review')).toHaveLength(1) // only the station with more than two passes
+    expect(screen.getByLabelText('Aid 1 at mile 1.2')).toBeChecked()
+    expect(screen.getByLabelText('Dry Creek at mile 3.1')).not.toBeChecked()
+    await u.click(screen.getByLabelText('Dry Creek at mile 3.1'))
+    await u.click(screen.getByLabelText('Dry Creek at mile 2.5'))
+    await u.click(screen.getByLabelText('Dry Creek at mile 4.3'))
+    await u.click(screen.getByLabelText('Aid 1 at mile 5.0'))
+    await u.click(screen.getByRole('button', { name: 'Save aid stations' }))
+    expect(save).toHaveBeenCalledWith('e1', [[true, false], [false, true, false, false], []])
+    expect(await screen.findByRole('status')).toHaveTextContent('Aid stations saved')
   })
 
   it('gives each event explicit View, Edit and Delete actions', async () => {

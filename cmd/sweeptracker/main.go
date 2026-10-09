@@ -196,6 +196,7 @@ func simulateCmd(ctx context.Context, args []string, env func(string) string, ou
 	interval := fs.Duration("interval", 5*time.Second, "time between reports (real time)")
 	speedup := fs.Float64("speedup", 1, "simulated seconds per real second (e.g. 30 to run a sweep quickly)")
 	stagger := fs.Float64("stagger-m", 0, "start each additional tracker this many metres further along the course")
+	startMile := fs.Float64("start-mile", 0, "start the first tracker this many miles along the course (e.g. a sweep that starts at the turnaround)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -238,7 +239,7 @@ func simulateCmd(ctx context.Context, args []string, env func(string) string, ou
 	}
 	sims := make([]*app.SimTracker, len(list))
 	for i, n := range list {
-		sims[i], err = app.NewSimTracker(strings.TrimSpace(n), ev.Course.Track, *speed/3.6, float64(i)**stagger)
+		sims[i], err = app.NewSimTracker(strings.TrimSpace(n), ev.Course.Track, *speed/3.6, *startMile*1609.344+float64(i)**stagger)
 		if err != nil {
 			return err
 		}

@@ -45,6 +45,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/events/{id}", s.updateEvent)
 	mux.HandleFunc("DELETE /api/events/{id}", s.deleteEvent)
 	mux.HandleFunc("PUT /api/events/{id}/course", s.uploadCourse)
+	mux.HandleFunc("PUT /api/events/{id}/passes", s.setPasses)
 	mux.HandleFunc("GET /api/events/{id}/export", s.exportEvent)
 	mux.HandleFunc("GET /api/events/{id}/positions", s.positions)
 	mux.HandleFunc("GET /api/trackers", s.trackers)
@@ -117,6 +118,18 @@ func (s *Server) uploadCourse(w http.ResponseWriter, r *http.Request) {
 		body = f
 	}
 	e, err := s.Events.SetCourse(r.Context(), r.PathValue("id"), body)
+	respond(w, e, err)
+}
+
+// setPasses stores which of each aid station's passes are real visits.
+func (s *Server) setPasses(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Use [][]bool `json:"use"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	e, err := s.Events.SetPasses(r.Context(), r.PathValue("id"), in.Use)
 	respond(w, e, err)
 }
 

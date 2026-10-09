@@ -1,8 +1,6 @@
-import { useMemo } from 'react'
-import { courseStats, teamDistance } from './course'
 import { ageLabel, fadeOpacity, metersToMiles, sweepState } from './format'
 import type { SweepState } from './format'
-import type { Course, TrackerHistory } from './types'
+import type { TrackerHistory } from './types'
 
 const STATE_TEXT: Record<SweepState, string> = {
   moving: 'Moving', stopped: 'Stopped', nofix: 'No GPS fix', unknown: 'No reports yet',
@@ -12,14 +10,14 @@ const STATE_TONE: Record<SweepState, string> = { moving: 'ok', stopped: 'warn', 
 interface Props {
   tracks: TrackerHistory[]
   now: number
-  course?: Course | null
+  /** Metres along the course of each team, by tracker name. */
+  progress?: Record<string, number>
   /** Tracker name of the expanded team; defaults to the first. */
   selected?: string
   onSelect?: (trackerName: string) => void
 }
 
-export function SweepPanel({ tracks, now, course, selected, onSelect }: Props) {
-  const stats = useMemo(() => (course ? courseStats(course) : null), [course])
+export function SweepPanel({ tracks, now, progress, selected, onSelect }: Props) {
   if (tracks.length === 0) return <p className="muted">No sweep teams assigned to this event.</p>
   const open = selected ?? tracks[0].trackerName
   return (
@@ -28,7 +26,7 @@ export function SweepPanel({ tracks, now, course, selected, onSelect }: Props) {
         const latest = t.positions[0]
         const state = sweepState(latest)
         const expanded = t.trackerName === open
-        const dist = stats ? teamDistance(stats, t) : undefined
+        const dist = progress?.[t.trackerName]
         return (
           <li key={t.trackerName} className={`sweep${expanded ? ' open' : ''}`}>
             <button type="button" className="team" aria-expanded={expanded} onClick={() => onSelect?.(t.trackerName)}>
