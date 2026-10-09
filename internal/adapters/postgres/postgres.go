@@ -66,12 +66,12 @@ func (s *Store) Migrate() error {
 
 // ---- events ----
 
-const eventCols = `id, name, date, notes, course, created_at, updated_at`
+const eventCols = `id, name, date, start_time, notes, course, created_at, updated_at`
 
 func scanEvent(row pgx.Row) (*domain.Event, error) {
 	var e domain.Event
 	var course []byte
-	if err := row.Scan(&e.ID, &e.Name, &e.Date, &e.Notes, &course, &e.CreatedAt, &e.UpdatedAt); err != nil {
+	if err := row.Scan(&e.ID, &e.Name, &e.Date, &e.StartTime, &e.Notes, &course, &e.CreatedAt, &e.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNotFound
 		}
@@ -89,13 +89,13 @@ func scanEvent(row pgx.Row) (*domain.Event, error) {
 
 func (s EventRepo) loadTrackers(ctx context.Context, events []*domain.Event) error {
 	for _, e := range events {
-		rows, err := s.pool.Query(ctx, `SELECT tracker_name, label, color FROM event_trackers WHERE event_id=$1 ORDER BY sort_order`, e.ID)
+		rows, err := s.pool.Query(ctx, `SELECT tracker_name, label, color, start_m FROM event_trackers WHERE event_id=$1 ORDER BY sort_order`, e.ID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
 			var t domain.EventTracker
-			if err := rows.Scan(&t.TrackerName, &t.Label, &t.Color); err != nil {
+			if err := rows.Scan(&t.TrackerName, &t.Label, &t.Color, &t.StartM); err != nil {
 				rows.Close()
 				return err
 			}
@@ -159,10 +159,10 @@ func (s EventRepo) Save(ctx context.Context, e *domain.Event) error {
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	_, err = tx.Exec(ctx, `
-		INSERT INTO events (id, name, date, notes, course, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
-		ON CONFLICT (id) DO UPDATE SET name=$2, date=$3, notes=$4, course=$5, updated_at=$7`,
-		e.ID, e.Name, e.Date, e.Notes, course, e.CreatedAt, e.UpdatedAt)
+		INSERT INTO events (id, name, date, start_time, notes, course, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		ON CONFLICT (id) DO UPDATE SET name=$2, date=$3, start_time=$4, notes=$5, course=$6, updated_at=$8`,
+		e.ID, e.Name, e.Date, e.StartTime, e.Notes, course, e.CreatedAt, e.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -170,8 +170,8 @@ func (s EventRepo) Save(ctx context.Context, e *domain.Event) error {
 		return err
 	}
 	for i, t := range e.Trackers {
-		if _, err = tx.Exec(ctx, `INSERT INTO event_trackers (event_id, tracker_name, label, color, sort_order) VALUES ($1,$2,$3,$4,$5)`,
-			e.ID, t.TrackerName, t.Label, t.Color, i); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO event_trackers (event_id, tracker_name, label, color, start_m, sort_order) VALUES ($1,$2,$3,$4,$5,$6)`,
+			e.ID, t.TrackerName, t.Label, t.Color, t.StartM, i); err != nil {
 			return err
 		}
 	}

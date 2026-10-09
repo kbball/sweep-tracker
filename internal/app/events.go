@@ -64,7 +64,7 @@ func (s *Events) Create(ctx context.Context, e *domain.Event) (*domain.Event, er
 	return e, s.repo.Save(ctx, e)
 }
 
-// Update replaces the editable fields (name, date, notes, trackers); the
+// Update replaces the editable fields (name, date, start time, notes, trackers); the
 // course is kept.
 func (s *Events) Update(ctx context.Context, id string, in *domain.Event) (*domain.Event, error) {
 	cur, err := s.Get(ctx, id)
@@ -74,7 +74,7 @@ func (s *Events) Update(ctx context.Context, id string, in *domain.Event) (*doma
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}
-	cur.Name, cur.Date, cur.Notes, cur.Trackers = in.Name, in.Date, in.Notes, in.Trackers
+	cur.Name, cur.Date, cur.StartTime, cur.Notes, cur.Trackers = in.Name, in.Date, in.StartTime, in.Notes, in.Trackers
 	if cur.Trackers == nil {
 		cur.Trackers = []domain.EventTracker{}
 	}
@@ -95,19 +95,20 @@ func (s *Events) SetCourse(ctx context.Context, id string, gpx io.Reader) (*doma
 		return nil, err
 	}
 	c.EnsurePasses()
+	c.CarryOver(e.Course) // keep the organiser's stop details when the GPX is corrected and re-uploaded
 	e.Course = c
 	e.UpdatedAt = s.now()
 	return e, s.repo.Save(ctx, e)
 }
 
-// SetPasses records which of each waypoint's passes are real aid-station
-// visits: use has one row per waypoint with one flag per pass.
-func (s *Events) SetPasses(ctx context.Context, id string, use [][]bool) (*domain.Event, error) {
+// SetStops records the organiser's details for each pass of the course
+// (official mile, cutoff, pacer, crew), in course order.
+func (s *Events) SetStops(ctx context.Context, id string, stops []domain.StopInput) (*domain.Event, error) {
 	e, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := e.Course.SetPassUse(use); err != nil {
+	if err := e.Course.SetStops(stops); err != nil {
 		return nil, err
 	}
 	e.UpdatedAt = s.now()

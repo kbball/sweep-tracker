@@ -104,9 +104,11 @@ func TrackDistance(pts []Point) float64 {
 
 // Event is a race/event configuration that can be shared between aid stations.
 type Event struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Date      time.Time      `json:"date"`
+	ID   string    `json:"id"`
+	Name string    `json:"name"`
+	Date time.Time `json:"date"`
+	// StartTime is the local wall-clock start ("15:04"), used with Date to show cutoff times.
+	StartTime string         `json:"startTime"`
 	Notes     string         `json:"notes"`
 	Course    *Course        `json:"course,omitempty"`
 	Trackers  []EventTracker `json:"trackers"`
@@ -120,6 +122,9 @@ type EventTracker struct {
 	TrackerName string `json:"trackerName"`
 	Label       string `json:"label"`
 	Color       string `json:"color"`
+	// StartM is where along the course (metres) this team starts, e.g. a stop it leaves from.
+	// Nil means the start of the course.
+	StartM *float64 `json:"startM,omitempty"`
 }
 
 // Validate checks the event fields.
@@ -128,12 +133,20 @@ func (e *Event) Validate() error {
 	if e.Name == "" {
 		return errors.Join(ErrInvalid, errors.New("event name is required"))
 	}
+	if e.StartTime != "" {
+		if _, err := time.Parse("15:04", e.StartTime); err != nil {
+			return errors.Join(ErrInvalid, errors.New("start time must be HH:MM"))
+		}
+	}
 	seen := map[string]bool{}
 	for i := range e.Trackers {
 		t := &e.Trackers[i]
 		t.TrackerName = strings.TrimSpace(t.TrackerName)
 		if t.TrackerName == "" {
 			return errors.Join(ErrInvalid, errors.New("tracker name is required"))
+		}
+		if t.StartM != nil && *t.StartM < 0 {
+			return errors.Join(ErrInvalid, errors.New("a team's start must be on the course"))
 		}
 		if seen[t.TrackerName] {
 			return errors.Join(ErrInvalid, errors.New("duplicate tracker "+t.TrackerName))

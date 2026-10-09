@@ -45,7 +45,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/events/{id}", s.updateEvent)
 	mux.HandleFunc("DELETE /api/events/{id}", s.deleteEvent)
 	mux.HandleFunc("PUT /api/events/{id}/course", s.uploadCourse)
-	mux.HandleFunc("PUT /api/events/{id}/passes", s.setPasses)
+	mux.HandleFunc("PUT /api/events/{id}/stops", s.setStops)
 	mux.HandleFunc("GET /api/events/{id}/export", s.exportEvent)
 	mux.HandleFunc("GET /api/events/{id}/positions", s.positions)
 	mux.HandleFunc("GET /api/trackers", s.trackers)
@@ -121,15 +121,15 @@ func (s *Server) uploadCourse(w http.ResponseWriter, r *http.Request) {
 	respond(w, e, err)
 }
 
-// setPasses stores which of each aid station's passes are real visits.
-func (s *Server) setPasses(w http.ResponseWriter, r *http.Request) {
+// setStops stores the organiser's details for each pass of the course, in course order.
+func (s *Server) setStops(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Use [][]bool `json:"use"`
+		Stops []domain.StopInput `json:"stops"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	e, err := s.Events.SetPasses(r.Context(), r.PathValue("id"), in.Use)
+	e, err := s.Events.SetStops(r.Context(), r.PathValue("id"), in.Stops)
 	respond(w, e, err)
 }
 

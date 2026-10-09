@@ -44,10 +44,12 @@ func TestEvents(t *testing.T) {
 	repo := s.Events()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	alt := 1200.0
-	e := &domain.Event{ID: "e1", Name: "Race", Date: now, Notes: "n", CreatedAt: now, UpdatedAt: now,
-		Trackers: []domain.EventTracker{{TrackerName: "b", Label: "B", Color: "#111"}, {TrackerName: "a", Label: "A", Color: "#222"}},
+	startM, mile, cut := 81000.5, 81.2, 15.5
+	e := &domain.Event{ID: "e1", Name: "Race", Date: now, StartTime: "12:00", Notes: "n", CreatedAt: now, UpdatedAt: now,
+		Trackers: []domain.EventTracker{{TrackerName: "b", Label: "B", Color: "#111", StartM: &startM}, {TrackerName: "a", Label: "A", Color: "#222"}},
 		Course: &domain.Course{Name: "C", DistanceM: 5, Track: []domain.Point{{Lat: 1, Lon: 2, Ele: &alt}},
-			Waypoints: []domain.Waypoint{{Name: "Aid", Point: domain.Point{Lat: 1, Lon: 2}}}}}
+			Waypoints: []domain.Waypoint{{Name: "Aid", Point: domain.Point{Lat: 1, Lon: 2},
+				Passes: []domain.Pass{{DistM: 3, Use: true, Label: "Snake Creek", Mile: &mile, CutoffHours: &cut, Pacer: true, Crew: "Yes/Yes"}}}}}}
 	if err := repo.Save(ctx, e); err != nil {
 		t.Fatal(err)
 	}
@@ -57,6 +59,13 @@ func TestEvents(t *testing.T) {
 	}
 	if got.Name != "Race" || len(got.Trackers) != 2 || got.Trackers[0].TrackerName != "b" || got.Course == nil || *got.Course.Track[0].Ele != 1200 || got.Course.Waypoints[0].Name != "Aid" {
 		t.Fatalf("%+v", got)
+	}
+
+	if got.StartTime != "12:00" || got.Trackers[0].StartM == nil || *got.Trackers[0].StartM != 81000.5 || got.Trackers[1].StartM != nil {
+		t.Fatalf("start time / team start: %+v", got)
+	}
+	if p := got.Course.Waypoints[0].Passes[0]; p.Label != "Snake Creek" || *p.Mile != 81.2 || *p.CutoffHours != 15.5 || !p.Pacer || p.Crew != "Yes/Yes" {
+		t.Fatalf("stop details: %+v", p)
 	}
 
 	// update: drop course and a tracker
