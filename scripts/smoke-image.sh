@@ -31,9 +31,10 @@ retry() { # retry <seconds> <command...>: run the command until it succeeds or t
 
 docker network create "$p" >/dev/null
 docker run -d --name "$p-db" --network "$p" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=sweep \
-  --health-cmd "pg_isready -U postgres -d sweep" --health-interval 2s --health-retries 30 postgres:17-alpine >/dev/null
+  --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d sweep" --health-interval 2s --health-retries 30 postgres:17-alpine >/dev/null
 docker run -d --name "$p-mqtt" --network "$p" \
   -v "$root/dev/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" eclipse-mosquitto:2 >/dev/null
+# pg_isready -h 127.0.0.1 checks over TCP: the image's first-start server listens on its socket only, so a socket check can pass while the app still gets "connection refused".
 db_ready() { [ "$(docker inspect -f '{{.State.Health.Status}}' "$p-db")" = healthy ]; }
 retry 60 db_ready || fail "Postgres did not become ready"
 
