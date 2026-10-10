@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Addr         string
+	BasePath     string // URL prefix behind a reverse proxy that strips it, e.g. "/sweep"; empty for the root
 	DatabaseURL  string
 	TileDir      string
 	MQTTBroker   string // empty disables ingestion
@@ -29,6 +30,7 @@ func Load(get func(string) string) (Config, error) {
 	}
 	c := Config{
 		Addr:         str("SWEEP_ADDR", ":8080"),
+		BasePath:     get("SWEEP_BASE_PATH"),
 		DatabaseURL:  get("SWEEP_DATABASE_URL"),
 		TileDir:      str("SWEEP_TILE_DIR", "./data/tiles"),
 		MQTTBroker:   get("SWEEP_MQTT_BROKER"),

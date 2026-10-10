@@ -1,3 +1,4 @@
+import { withBase } from './basePath'
 import type { AppConfig, KnownTracker, MapsInfo, RefreshStatus, StopInput, SweepEvent, TrackerHistory } from './types'
 
 export class ApiError extends Error {
@@ -7,7 +8,7 @@ export class ApiError extends Error {
 async function req<T>(method: string, path: string, body?: BodyInit | null, json = false): Promise<T> {
   const headers: Record<string, string> = {}
   if (json) headers['Content-Type'] = 'application/json'
-  const res = await fetch(path, { method, headers, body })
+  const res = await fetch(withBase(path), { method, headers, body })
   if (!res.ok) {
     let msg = res.statusText
     try { msg = (await res.json()).error ?? msg } catch { /* not JSON */ }
@@ -29,7 +30,7 @@ export const api = {
   uploadCourse: (id: string, gpx: Blob) => req<SweepEvent>('PUT', `/api/events/${id}/course`, gpx),
   setStops: (id: string, stops: StopInput[]) => send<SweepEvent>('PUT', `/api/events/${id}/stops`, { stops }),
   importEvent: (bundle: Blob) => req<SweepEvent>('POST', '/api/events/import', bundle),
-  exportUrl: (id: string) => `/api/events/${id}/export`,
+  exportUrl: (id: string) => withBase(`/api/events/${id}/export`),
   positions: (id: string, history = 10) => req<TrackerHistory[]>('GET', `/api/events/${id}/positions?history=${history}`),
   knownTrackers: () => req<KnownTracker[]>('GET', '/api/trackers'),
   maps: () => req<MapsInfo>('GET', '/api/maps'),

@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +31,8 @@ type Server struct {
 	Positions *app.Positions
 	Maps      *app.Maps
 	Version   string
-	Static    fs.FS // built frontend; may be nil
+	Static    fs.FS  // built frontend; may be nil
+	BasePath  string // URL prefix the app is mounted under behind a reverse proxy, e.g. "/sweep"; "" for the root
 	Heartbeat time.Duration
 }
 
@@ -57,7 +60,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/tiles/{layer}/{z}/{x}/{y}", s.tile)
 
 	if s.Static != nil {
-		mux.Handle("/", spa(s.Static))
+		mux.Handle("/", spa(s.Static, s.BasePath))
 	}
 	return mux
 }
@@ -268,16 +271,44 @@ func (s *Server) tile(w http.ResponseWriter, r *http.Request) {
 
 // ---- helpers ----
 
-func spa(static fs.FS) http.Handler {
+var baseTag = regexp.MustCompile(`<base\s+href="[^"]*"\s*/?>`)
+
+// normalizeBasePath returns "" for the root, otherwise a path with a leading
+// slash and no trailing slash ("sweep/" -> "/sweep").
+func normalizeBasePath(p string) string {
+	p = strings.Trim(strings.TrimSpace(p), "/")
+	if p == "" {
+		return ""
+	}
+	return "/" + p
+}
+
+// spa serves the built frontend and falls back to index.html for client-side
+// routes. The reverse proxy strips basePath from request URLs; it is only used
+// to rewrite index.html's <base href>, so the browser builds asset, API and
+// router URLs under the prefix.
+func spa(static fs.FS, basePath string) http.Handler {
+	basePath = normalizeBasePath(basePath)
 	files := http.FileServerFS(static)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := strings.TrimPrefix(r.URL.Path, "/")
+		p := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 		if p != "" {
-			if st, err := fs.Stat(static, p); err != nil || st.IsDir() {
-				r.URL.Path = "/" // client-side route
+			if st, err := fs.Stat(static, p); err == nil && !st.IsDir() {
+				files.ServeHTTP(w, r)
+				return
 			}
 		}
-		files.ServeHTTP(w, r)
+		b, err := fs.ReadFile(static, "index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if basePath != "" {
+			b = baseTag.ReplaceAll(b, []byte(`<base href="`+basePath+`/" />`))
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write(b)
 	})
 }
 

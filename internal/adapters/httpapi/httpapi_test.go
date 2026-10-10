@@ -197,6 +197,32 @@ func TestStaticSPA(t *testing.T) {
 	}
 }
 
+func TestStaticSPABasePath(t *testing.T) {
+	index := `<html><head><base href="/" /></head><body>app</body></html>`
+	static := fstest.MapFS{"index.html": {Data: []byte(index)}, "assets/a.js": {Data: []byte("js")}}
+	for base, want := range map[string]string{"": `<base href="/" />`, "/sweep": `<base href="/sweep/" />`, "sweep/": `<base href="/sweep/" />`} {
+		s := &httpapi.Server{Static: static, BasePath: base}
+		for _, p := range []string{"/", "/events/e1"} {
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+			if rec.Code != 200 || !strings.Contains(rec.Body.String(), want) {
+				t.Fatalf("base %q %s: %d %s", base, p, rec.Code, rec.Body)
+			}
+		}
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/assets/a.js", nil))
+		if rec.Body.String() != "js" {
+			t.Fatalf("static file not served as is: %s", rec.Body)
+		}
+	}
+	// No index.html at all: 404 rather than a panic.
+	rec := httptest.NewRecorder()
+	(&httpapi.Server{Static: fstest.MapFS{}}).Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/x", nil))
+	if rec.Code != 404 {
+		t.Fatal(rec.Code)
+	}
+}
+
 func TestTilesAndMaps(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("\x89PNG\r\n\x1a\n....")) }))
 	defer ts.Close()
