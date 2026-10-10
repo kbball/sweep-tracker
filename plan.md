@@ -7,6 +7,3 @@ Completed work is in CHANGELOG.md; this file holds only what remains.
 
 ## Next
 - [ ] Verify against the real Meshcore→MQTT bridge (text format implemented from your examples)
-
-## Backlog
-- [ ] New-user walkthrough

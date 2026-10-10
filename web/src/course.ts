@@ -77,6 +77,9 @@ export interface CourseStop {
   pacer?: boolean
   crew?: string
 }
+/** Identifies a stop (and survives reloads): its distance along the course, to the metre. */
+export const stopKey = (s: Pick<CourseStop, 'distM'>) => String(Math.round(s.distM))
+
 export interface CourseStats {
   totalM: number
   /** One entry per confirmed aid-station pass, in course order. */
@@ -87,6 +90,8 @@ export interface CourseStats {
   candidates: (lat: number, lon: number) => number[]
   /** The mile at a distance along the course: official miles between the stops that have them, else the GPX distance. */
   mileAt: (distM: number) => number
+  /** Where a distance along the course is on the map. */
+  pointAt: (distM: number) => Point
   /** The next stop ahead of a position, with the miles to it. */
   nextStop: (distM: number) => { stop: CourseStop; miles: number } | undefined
 }
@@ -144,13 +149,21 @@ export function courseStats(course: Course, maxSamples = 200): CourseStats | nul
     const a = anchors[i - 1], b = anchors[i]
     return b.distM === a.distM ? a.mile : a.mile + ((d - a.distM) / (b.distM - a.distM)) * (b.mile - a.mile)
   }
+  const pointAt = (d: number): Point => {
+    const x = Math.min(totalM, Math.max(0, d))
+    let lo = 1, hi = cum.length - 1
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < x) lo = mid + 1; else hi = mid }
+    const a = track[lo - 1], b = track[lo], span = cum[lo] - cum[lo - 1]
+    const t = span === 0 ? 0 : (x - cum[lo - 1]) / span
+    return { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t }
+  }
   const nextStop = (d: number) => {
     const stop = stops.find((s) => s.distM > d + AT_STOP_M)
     if (!stop) return undefined
     return { stop, miles: Math.max(0, stop.mile !== undefined && anchors.length >= 2 ? stop.mile - mileAt(d) : (stop.distM - d) / MILE_M) }
   }
   return {
-    totalM, stops, profile, mileAt, nextStop,
+    totalM, stops, profile, mileAt, pointAt, nextStop,
     candidates: (lat, lon) => placeable(passesOf(track, cum, lat, lon, FIX_RADIUS_M)),
   }
 }

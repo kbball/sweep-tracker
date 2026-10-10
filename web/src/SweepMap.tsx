@@ -91,12 +91,14 @@ function MapControls({ bounds }: { bounds?: LatLngBoundsExpression }) {
 
 interface Props {
   focus?: Focus
+  /** The aid station being worked, ringed on the map. */
+  activeStop?: { name: string; lat: number; lon: number }
   course?: Course | null
   tracks: TrackerHistory[]
   layers?: LayerInfo[]
 }
 
-export function SweepMap({ course, tracks, layers = FALLBACK_LAYERS, focus }: Props) {
+export function SweepMap({ course, tracks, layers = FALLBACK_LAYERS, focus, activeStop }: Props) {
   const courseBounds = boundsOf(course)
   const center = centerOf(courseBounds)
   const zoom = defaultZoom(layers)
@@ -122,6 +124,13 @@ export function SweepMap({ course, tracks, layers = FALLBACK_LAYERS, focus }: Pr
           <Tooltip>{w.name || 'Waypoint'}</Tooltip>
         </CircleMarker>
       ))}
+
+      {activeStop && (
+        <CircleMarker key={`active-${activeStop.lat}-${activeStop.lon}`} center={[activeStop.lat, activeStop.lon]} radius={16}
+          pathOptions={{ color: '#2f5bea', fillColor: '#2f5bea', fillOpacity: 0.2, weight: 4 }}>
+          <Tooltip permanent direction="top" offset={[0, -14]}>{activeStop.name}</Tooltip>
+        </CircleMarker>
+      )}
 
       {tracks.map((t) => {
         // Only reports with a fix can be placed. Index is the age rank, so

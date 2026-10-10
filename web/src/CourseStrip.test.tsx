@@ -21,7 +21,7 @@ describe('CourseStrip', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('shows length, aid stations on alternating rows and team positions', () => {
+  it('shows length, aid stations as tooltips and team positions', () => {
     const stats = courseStats(course())
     const tracks = [
       track({ positions: [pos(0, { lat: 40.05, lon: -105 })] }),
@@ -31,25 +31,20 @@ describe('CourseStrip', () => {
     expect(screen.getByText('6.9 mi')).toBeInTheDocument()
     expect(screen.getByText(/^Aid 1 · mi 1\.7$/)).toBeInTheDocument()
     expect(screen.getByText(/^Aid 2 · mi 5\.2$/)).toBeInTheDocument()
-    expect(screen.getByText(/^Aid 1/)).toHaveClass('row0')
-    expect(screen.getByText(/^Too close/)).toHaveClass('row1') // near Aid 1, so it goes on the other row
+    expect(screen.getByLabelText(/^Aid 1 · mi 1\.7$/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Too close/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Aid 2 · mi 5.2')).toBeInTheDocument()
     expect(screen.getByText('▲ Sweep 1 mi 3.5')).toBeInTheDocument()
     expect(screen.queryByText(/Sweep 2 mi/)).toBeNull() // no fix: not placed
     expect(screen.getByRole('img', { name: /Elevation profile/ })).toBeInTheDocument()
   })
 
-  it('drops a label that would still overlap, and keeps edge labels inside the strip', () => {
-    const c = course({ waypoints: [
-      { name: 'Start', lat: 40, lon: -105 },
-      { name: 'Aid A', lat: 40.0005, lon: -105 }, { name: 'Aid B', lat: 40.001, lon: -105 }, { name: 'Aid C', lat: 40.0015, lon: -105 },
-      { name: 'Finish', lat: 40.1, lon: -105 },
-    ] })
+  it('groups stops too close to tell apart, and keeps tooltips inside the strip at both ends', () => {
+    const c = course({ waypoints: [{ name: 'Start', lat: 40, lon: -105 }, { name: 'Also start', lat: 40.0002, lon: -105 }, { name: 'Aid', lat: 40.05, lon: -105 }, { name: 'Finish', lat: 40.1, lon: -105 }] })
     render(<CourseStrip stats={courseStats(c)} tracks={[]} />)
-    expect(screen.getByText(/^Start/)).toHaveStyle({ left: '0%' })
-    expect(screen.getByText(/^Finish/)).toHaveStyle({ right: '0%' })
-    expect(screen.getByText(/^Aid A/)).toBeInTheDocument()
-    expect(screen.queryByText(/^Aid B/)).toBeNull() // both rows are taken this close to the start
-    expect(screen.queryByText(/^Aid C/)).toBeNull()
+    expect(screen.getByLabelText(/^Start · mi 0\.0, Also start/)).toHaveClass('at-start') // too close to tell apart: one target, both listed
+    expect(screen.getByLabelText(/^Aid/)).not.toHaveClass('at-start', 'at-end')
+    expect(screen.getByLabelText(/^Finish/)).toHaveClass('at-end')
   })
 
   it('shows official miles, the handbook names and the official length when the stops have them', () => {

@@ -66,12 +66,14 @@ export function EventEditor({ event, known, onChange }: Props) {
         </button>
       </div>
 
-      <h3 id="setup-course">2 · Course</h3>
+      <div id="setup-course">
+      <h3>2 · Course</h3>
       <p>{event.course
         ? `${event.course.name || 'Course'}: ${metersToMiles(event.course.distanceM).toFixed(1)} mi, ${event.course.waypoints.length} waypoints`
         : 'No course uploaded'}</p>
       <label>GPX file <input type="file" accept=".gpx,application/gpx+xml,text/xml"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => api.uploadCourse(event.id, f), 'Course uploaded') }} /></label>
+      </div>
 
       {event.course && event.course.waypoints.length > 0 && (
         <StopsEditor course={event.course} date={date} startTime={startTime} onStartTime={setStartTime} onSave={saveStops} />
