@@ -55,7 +55,7 @@ At an event this runs on the field server alongside the other tools, set up by [
 
 The data path is: tracker → mesh → a MeshCore node → the [`meshcore-mqtt`](https://github.com/kbball/meshcore-mqtt) bridge → MQTT → this app. Trackers are flashed and configured with [meshcore-fleet-setup](https://github.com/kbball/meshcore-fleet-setup); the tracker name set there is the name you give the team in **Admin → Sweep teams**.
 
-> **Not yet verified end to end.** The bridge publishes each channel message as JSON on `meshcore/message/channel/<n>`, while this app subscribes to `meshcore/sweep/#` by default and reads either a plain-text report or a JSON object with `lat`/`lon` fields. Publishing the plain-text report to `meshcore/sweep/<name>` works (the smoke test does exactly that). Confirming that the bridge's real output reaches this app is an open item in `plan.md`; test it with a real tracker before relying on it.
+> **Set the channel, then try a real tracker.** The bridge publishes each channel on `meshcore/message/channel/<n>`, so set `SWEEP_MESHCORE_CHANNEL` to the channel index the trackers transmit on (the event convention is `0`); the app unwraps the bridge's message and reads the tracker report from its text. Tested with simulated bridge messages; not yet confirmed with a real tracker and bridge (see `plan.md`).
 
 ## Using it
 
