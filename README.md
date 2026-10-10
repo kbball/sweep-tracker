@@ -39,6 +39,7 @@ Pin a release with `SWEEP_VERSION=0.2.0 docker compose up -d`. The image runs as
 |---|---|---|
 | `SWEEP_DATABASE_URL` | required | Postgres connection string |
 | `SWEEP_ADDR` | `:8080` | Listen address |
+| `SWEEP_BASE_PATH` | _(empty)_ | URL prefix when a reverse proxy serves the app under a path and strips it, e.g. `/sweep`. Empty serves at `/` |
 | `SWEEP_TILE_DIR` | `./data/tiles` | Where offline map tiles are stored (mount a volume) |
 | `SWEEP_MQTT_BROKER` | unset | e.g. `tcp://mqtt:1883`; ingestion is disabled when unset |
 | `SWEEP_MQTT_TOPIC` | `meshcore/sweep/#` | Topic to subscribe to |

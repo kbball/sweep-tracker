@@ -21,8 +21,8 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadOverrides(t *testing.T) {
-	c, err := Load(env(map[string]string{"SWEEP_DATABASE_URL": "x", "SWEEP_ADDR": ":9", "SWEEP_TILE_RPS": "2"}))
-	if err != nil || c.Addr != ":9" || c.TileRPS != 2 {
+	c, err := Load(env(map[string]string{"SWEEP_DATABASE_URL": "x", "SWEEP_ADDR": ":9", "SWEEP_BASE_PATH": "/sweep", "SWEEP_TILE_RPS": "2"}))
+	if err != nil || c.Addr != ":9" || c.BasePath != "/sweep" || c.TileRPS != 2 {
 		t.Fatalf("%v %+v", err, c)
 	}
 }

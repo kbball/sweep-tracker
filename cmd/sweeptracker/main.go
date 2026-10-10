@@ -131,6 +131,7 @@ func serve(ctx context.Context, env func(string) string) error {
 			Maps:      app.NewMaps(store, dl, events),
 			Version:   version,
 			Static:    static,
+			BasePath:  cfg.BasePath,
 		}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

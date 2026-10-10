@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { withBase } from './basePath'
 import { mergePosition } from './format'
 import type { Position, SweepEvent, TrackerHistory } from './types'
 
@@ -29,7 +30,7 @@ export function useLive(eventId: string): Live {
       .then(([e, t]) => { if (!cancelled) { setEvent(e); setTracks(t) } })
       .catch((e: Error) => { if (!cancelled) setError(e.message) })
 
-    const es = new EventSource('/api/stream')
+    const es = new EventSource(withBase('/api/stream'))
     es.onopen = () => setConnected(true)
     es.onerror = () => setConnected(false) // EventSource retries on its own
     es.addEventListener('position', (ev) => {

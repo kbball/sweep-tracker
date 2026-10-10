@@ -3,6 +3,7 @@ Format: Keep a Changelog; versioning: Semantic Versioning.
 
 ## [Unreleased]
 ### Added
+- **Run behind a reverse proxy under a path:** set `SWEEP_BASE_PATH` (for example `/sweep`) when a proxy such as Caddy serves the app at `https://host/sweep/` and strips the prefix. The server tells the page its prefix through `<base href>`, so assets, API calls, the live stream, map tiles, downloads and page routes all work under it. Unset, the app serves at `/` as before.
 - **First-run walkthrough:** the first time the app is opened in a browser, a short tour walks through events and the live map, setting up in Admin, the course and aid stations, sweep teams and trackers, and offline maps. Each step goes to the page it is about and spotlights that part of it (falling back to the setup guide when there is no event yet), and closing the tour returns you to where you were. The welcome screen has "No thanks" to skip it; either way it is shown only once (remembered in the browser), and a **Tour** button in the header replays it.
 - **My aid station** on the live map: pick the station you are working from a dropdown in the team card, or click its line on the course strip. It is ringed and named on the map (which pans to it), highlighted on the strip, and the card shows its mile, cutoff and crew note and how far each team still has to come (or that it is here or has passed). Remembered per event in the browser.
 

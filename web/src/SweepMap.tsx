@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { CircleMarker, LayersControl, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import type { FitBoundsOptions, LatLngBoundsExpression } from 'leaflet'
+import { withBase } from './basePath'
 import { fadeOpacity, lastFix } from './format'
 import type { Course, MapLayer, TrackerHistory } from './types'
 
@@ -111,7 +112,7 @@ export function SweepMap({ course, tracks, layers = FALLBACK_LAYERS, focus, acti
       <LayersControl position="topright">
         {layers.map((l, i) => (
           <LayersControl.BaseLayer key={l.id} name={l.name} checked={i === 0}>
-            <TileLayer url={`/api/tiles/${l.id}/{z}/{x}/{y}.png`} attribution={l.attribution} maxZoom={usableMaxZoom(l)} />
+            <TileLayer url={withBase(`/api/tiles/${l.id}/{z}/{x}/{y}.png`)} attribution={l.attribution} maxZoom={usableMaxZoom(l)} />
           </LayersControl.BaseLayer>
         ))}
       </LayersControl>

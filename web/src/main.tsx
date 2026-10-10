@@ -5,13 +5,14 @@ import '@fontsource-variable/dm-sans' // bundled, so the app stays fully offline
 import 'leaflet/dist/leaflet.css'
 import './index.css'
 import { App } from './App'
+import { basePath } from './basePath'
 import { applyTheme, storedTheme } from './theme'
 
 applyTheme(storedTheme()) // before first paint, so there is no flash of the wrong theme
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={basePath}>
       <App />
     </BrowserRouter>
   </StrictMode>,
