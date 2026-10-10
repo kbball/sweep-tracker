@@ -13,7 +13,7 @@ type Config struct {
 	DatabaseURL  string
 	TileDir      string
 	MQTTBroker   string // empty disables ingestion
-	MQTTTopic    string
+	MQTTTopic    string // topic to subscribe to; see SWEEP_MESHCORE_CHANNEL
 	MQTTClientID string
 	MQTTUser     string
 	MQTTPassword string
@@ -39,6 +39,16 @@ func Load(get func(string) string) (Config, error) {
 		MQTTUser:     get("SWEEP_MQTT_USER"),
 		MQTTPassword: get("SWEEP_MQTT_PASSWORD"),
 		TileRPS:      8,
+	}
+	// SWEEP_MESHCORE_CHANNEL listens to one channel of the meshcore-mqtt bridge, which
+	// publishes every channel to meshcore/message/channel/<index>. An explicit
+	// SWEEP_MQTT_TOPIC wins.
+	if v := get("SWEEP_MESHCORE_CHANNEL"); v != "" && get("SWEEP_MQTT_TOPIC") == "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return c, fmt.Errorf("SWEEP_MESHCORE_CHANNEL must be a channel index (0 or more)")
+		}
+		c.MQTTTopic = fmt.Sprintf("meshcore/message/channel/%d", n)
 	}
 	if v := get("SWEEP_TILE_RPS"); v != "" {
 		n, err := strconv.Atoi(v)

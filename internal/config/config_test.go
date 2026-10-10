@@ -27,6 +27,24 @@ func TestLoadOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadMeshcoreChannel(t *testing.T) {
+	base := map[string]string{"SWEEP_DATABASE_URL": "x", "SWEEP_MESHCORE_CHANNEL": "2"}
+	c, err := Load(env(base))
+	if err != nil || c.MQTTTopic != "meshcore/message/channel/2" {
+		t.Fatalf("%v %+v", err, c)
+	}
+	// An explicit topic wins over the channel shortcut.
+	base["SWEEP_MQTT_TOPIC"] = "custom/#"
+	if c, err = Load(env(base)); err != nil || c.MQTTTopic != "custom/#" {
+		t.Fatalf("%v %+v", err, c)
+	}
+	for _, bad := range []string{"x", "-1"} {
+		if _, err := Load(env(map[string]string{"SWEEP_DATABASE_URL": "x", "SWEEP_MESHCORE_CHANNEL": bad})); err == nil {
+			t.Fatalf("%q should be rejected", bad)
+		}
+	}
+}
+
 func TestLoadErrors(t *testing.T) {
 	if _, err := Load(env(nil)); err == nil {
 		t.Fatal("db url required")
