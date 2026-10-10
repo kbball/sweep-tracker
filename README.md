@@ -42,7 +42,8 @@ Pin a release with `SWEEP_VERSION=0.2.0 docker compose up -d`. The image runs as
 | `SWEEP_BASE_PATH` | _(empty)_ | URL prefix when a reverse proxy serves the app under a path and strips it, e.g. `/sweep`. Empty serves at `/` |
 | `SWEEP_TILE_DIR` | `./data/tiles` | Where offline map tiles are stored (mount a volume) |
 | `SWEEP_MQTT_BROKER` | unset | e.g. `tcp://mqtt:1883`; ingestion is disabled when unset |
-| `SWEEP_MQTT_TOPIC` | `meshcore/sweep/#` | Topic to subscribe to |
+| `SWEEP_MESHCORE_CHANNEL` | unset | Listen to one channel of the [meshcore-mqtt](https://github.com/kbball/meshcore-mqtt) bridge, which publishes every MeshCore channel to `meshcore/message/channel/<index>`. Set it to the channel index the trackers use (e.g. `2`) and the topic is chosen for you. Ignored if `SWEEP_MQTT_TOPIC` is set |
+| `SWEEP_MQTT_TOPIC` | `meshcore/sweep/#` | Topic to subscribe to, when not using `SWEEP_MESHCORE_CHANNEL` |
 | `SWEEP_MQTT_CLIENT_ID` / `_USER` / `_PASSWORD` | `sweep-tracker` / unset / unset | Broker client settings |
 | `SWEEP_TILE_RPS` | `8` | Max upstream requests per second when downloading maps |
 
@@ -79,7 +80,7 @@ Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V idle   (fix, stopped)
 Sweep1: no fix (no position yet) mv                            (no fix)
 ```
 
-Messages carry no timestamp, so the time received is used. Altitude is kept in feet. Reports without a fix are recorded and listed but can't be placed on the map; the map shows the last known fix. Battery voltage (`bat`) and satellite count (`sats`) are stored and shown. A JSON object (`name`, `lat`, `lon`, `ts`, `alt`, `bat`, `sats`, `moving`, `fix`) is also accepted.
+Messages carry no timestamp, so the time received is used. Altitude is kept in feet. Reports without a fix are recorded and listed but can't be placed on the map; the map shows the last known fix. Battery voltage (`bat`) and satellite count (`sats`) are stored and shown. The meshcore-mqtt bridge's channel envelope (`{"payload":{"channel_idx":2,"text":"Sweep1: 33.89,-84.16 …"}}`) is unwrapped and its `text` read as above; MeshCore puts the sender's name in front of the text, so a tracker named `Sweep1` shows up as `Sweep1`. A JSON object (`name`, `lat`, `lon`, `ts`, `alt`, `bat`, `sats`, `moving`, `fix`) is also accepted.
 
 Map data: USGS The National Map (public domain).
 

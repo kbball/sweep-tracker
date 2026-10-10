@@ -95,6 +95,26 @@ func TestParseMessage(t *testing.T) {
 	}
 }
 
+func TestParseBridgeEnvelope(t *testing.T) {
+	env := `{"type":"CHANNEL_MSG_RECV","payload":{"type":"CHAN","channel_idx":2,"text":" Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V mv "}}`
+	p, err := app.ParseMessage([]byte(env), t0)
+	if err != nil || p.TrackerName != "Sweep1" || !p.HasFix || !p.Moving || p.Lat != 33.89057 {
+		t.Fatalf("%+v %v", p, err)
+	}
+	p, err = app.ParseMessage([]byte(`{"payload":{"text":"Sweep1: no fix (no position yet) idle"}}`), t0)
+	if err != nil || p.HasFix || p.TrackerName != "Sweep1" {
+		t.Fatalf("%+v %v", p, err)
+	}
+	// A bridge message that is not a tracker report is rejected, not mistaken for JSON fields.
+	if _, err := app.ParseMessage([]byte(`{"payload":{"text":"hello there"}}`), t0); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal(err)
+	}
+	// An envelope without text falls through to the plain JSON reading.
+	if _, err := app.ParseMessage([]byte(`{"payload":{"channel_idx":2}}`), t0); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatal(err)
+	}
+}
+
 func TestParseTextMessage(t *testing.T) {
 	ok := []struct {
 		in     string

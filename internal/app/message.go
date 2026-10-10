@@ -19,14 +19,34 @@ import (
 //	Sweep1: 33.89057,-84.16948 alt=955ft sats=10 bat=3.77V mv
 //	Sweep1: no fix (no position yet) idle
 //
-// A JSON object with common key spellings is also accepted. Messages carry no
+// The bridge's channel message envelope (text inside payload.text) is unwrapped
+// first. A JSON object with common key spellings is also accepted. Messages carry no
 // timestamp, so the receive time is used. A message without usable
 // coordinates is recorded as "no fix".
 func ParseMessage(payload []byte, now time.Time) (*domain.Position, error) {
-	if t := strings.TrimSpace(string(payload)); !strings.HasPrefix(t, "{") {
+	t := strings.TrimSpace(string(payload))
+	if !strings.HasPrefix(t, "{") {
 		return parseText(t, now)
 	}
+	if text, ok := bridgeText(payload); ok {
+		return parseText(strings.TrimSpace(text), now)
+	}
 	return parseJSON(payload, now)
+}
+
+// bridgeText extracts the message text from the meshcore-mqtt bridge's channel
+// message envelope, {"type":...,"payload":{"channel_idx":1,"text":"Sweep1: ..."}}.
+// MeshCore puts the sender's name in front of the text, which is the tracker name.
+func bridgeText(payload []byte) (string, bool) {
+	var env struct {
+		Payload *struct {
+			Text *string `json:"text"`
+		} `json:"payload"`
+	}
+	if json.Unmarshal(payload, &env) != nil || env.Payload == nil || env.Payload.Text == nil {
+		return "", false
+	}
+	return *env.Payload.Text, true
 }
 
 const metersToFeet = 3.28084
