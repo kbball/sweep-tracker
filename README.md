@@ -49,6 +49,14 @@ Pin a release with `SWEEP_VERSION=0.2.0 docker compose up -d`. The image runs as
 
 There is no login: anyone who can reach the server can use the admin page, so keep it on a trusted network.
 
+## Deploying at an event
+
+At an event this runs on the field server alongside the other tools, set up by [aredn-go-box](https://github.com/kbball/aredn-go-box). Enable its `sweep-tracker` stack there and it brings the shared Postgres and MQTT broker, the MeshCore bridge and a launcher page with it. It is served at `https://<host>/sweep/` (the stack sets `SWEEP_BASE_PATH=/sweep`); that repo's README is the place for setup, per-site settings and troubleshooting.
+
+The data path is: tracker → mesh → a MeshCore node → the [`meshcore-mqtt`](https://github.com/kbball/meshcore-mqtt) bridge → MQTT → this app. Trackers are flashed and configured with [meshcore-fleet-setup](https://github.com/kbball/meshcore-fleet-setup); the tracker name set there is the name you give the team in **Admin → Sweep teams**.
+
+> **Not yet verified end to end.** The bridge publishes each channel message as JSON on `meshcore/message/channel/<n>`, while this app subscribes to `meshcore/sweep/#` by default and reads either a plain-text report or a JSON object with `lat`/`lon` fields. Publishing the plain-text report to `meshcore/sweep/<name>` works (the smoke test does exactly that). Confirming that the bridge's real output reaches this app is an open item in `plan.md`; test it with a real tracker before relying on it.
+
 ## Using it
 
 The **Setup guide** at the top of Admin lists these steps in order, shows which are done, and jumps to each section. Each step needs the ones before it.
