@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { api } from '../api'
 import { App } from '../App'
 import { event, pos, track } from '../test/fixtures'
+import { markTourSeen } from '../tourState'
 
 vi.mock('react-leaflet', async () => (await import('../test/leafletMock')).leafletMock)
 
@@ -17,8 +18,69 @@ beforeEach(() => {
   vi.spyOn(api, 'maps').mockResolvedValue(maps)
   vi.spyOn(api, 'config').mockResolvedValue({ version: '1' })
   localStorage.clear()
+  markTourSeen() // the first-run tour has its own tests
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+describe('first-run tour', () => {
+  it('greets a new user on any page, once, and Tour in the header replays it', async () => {
+    localStorage.clear()
+    vi.spyOn(api, 'listEvents').mockResolvedValue([event()])
+    const { unmount } = at('/')
+    await userEvent.click(await screen.findByRole('button', { name: 'No thanks' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Tour' }))
+    expect(screen.getByRole('dialog', { name: 'Welcome to Sweep Tracker' })).toBeInTheDocument()
+    unmount()
+    localStorage.setItem('sweep-tour-seen', '1')
+    at('/')
+    await screen.findByRole('link', { name: 'Test 50K' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+describe('active aid station', () => {
+  const course = {
+    name: 'OAB', distanceM: 0,
+    track: Array.from({ length: 51 }, (_, i) => ({ lat: i / 1000, lon: 0 })),
+    waypoints: [{ name: 'Aid 1', lat: 0.02, lon: 0, passes: [{ distM: 2224, use: true, mile: 1.4, cutoffHours: 3, crew: 'Crew: Sam' }] }],
+  }
+  const setup = () => {
+    vi.spyOn(api, 'getEvent').mockResolvedValue(event({ course }))
+    vi.spyOn(api, 'positions').mockResolvedValue([track({ positions: [pos(1, { lat: 0.01, lon: 0 })] })])
+  }
+  it('focuses and highlights the chosen station, shows how far each team is, and remembers it', async () => {
+    setup()
+    const u = userEvent.setup()
+    const { unmount } = at('/e/e1')
+    await u.selectOptions(await screen.findByLabelText('My aid station'), '2224')
+    expect(screen.getByText(/Mile 1\.4 · cutoff \+3h · Crew: Sam/)).toBeInTheDocument()
+    expect(screen.getByText(/Sweep 1 0\.7 mi away|Sweep 1 \d\.\d mi away/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Aid 1/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByTestId('marker').map((m) => m.dataset.props).join()).toContain('"radius":16')
+    expect(localStorage.getItem('sweep-aid-station-e1')).toBe('2224')
+    unmount()
+    at('/e/e1')
+    expect(await screen.findByLabelText('My aid station')).toHaveValue('2224')
+  })
+  it('selects by clicking or keyboard on the strip, and clears again', async () => {
+    setup()
+    const u = userEvent.setup()
+    at('/e/e1')
+    const stop = await screen.findByRole('button', { name: /^Aid 1/ })
+    await u.click(stop)
+    expect(screen.getByLabelText('My aid station')).toHaveValue('2224')
+    stop.focus()
+    await u.keyboard('{Enter}')
+    expect(screen.getByLabelText('My aid station')).toHaveValue('')
+    expect(localStorage.getItem('sweep-aid-station-e1')).toBeNull()
+  })
+  it('ignores a remembered station that is no longer on the course', async () => {
+    setup()
+    localStorage.setItem('sweep-aid-station-e1', '99999')
+    at('/e/e1')
+    expect(await screen.findByLabelText('My aid station')).toHaveValue('')
+  })
+})
 
 describe('HomePage', () => {
   it('lists events', async () => {
@@ -79,8 +141,8 @@ describe('MapPage', () => {
     expect(screen.queryAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(0) // reports stay tucked away until opened
     await userEvent.click(screen.getByRole('button', { name: /Recent reports \(8\)/ })) // only the newest 8 are kept for display
     expect(screen.getAllByRole('listitem').filter((li) => li.style.opacity)).toHaveLength(8)
-    expect(screen.getByText(/^Aid 1 \(out\) · mi 1\.4$/)).toBeInTheDocument()
-    expect(screen.getByText(/^Aid 1 \(in\) · mi 5\.5$/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Aid 1 \(out\) · mi 1\.4/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Aid 1 \(in\) · mi 5\.5/)).toBeInTheDocument()
   })
   it('prompts for a course when missing and ticks the clock', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })

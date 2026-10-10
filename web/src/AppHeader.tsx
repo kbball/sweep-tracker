@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { ThemeToggle } from './ThemeToggle'
+import { openTour } from './tourState'
 
 /** Top bar for the non-map pages: brand, navigation and the theme toggle. */
 export function AppHeader() {
@@ -15,6 +16,7 @@ export function AppHeader() {
         <NavLink to="/" end>Events</NavLink>
         <NavLink to="/admin">Admin</NavLink>
       </nav>
+      <button type="button" className="ghost" onClick={openTour}>Tour</button>
       <ThemeToggle showLabel />
     </header>
   )

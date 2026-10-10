@@ -100,8 +100,8 @@ export function StopsEditor({ course, date, startTime, onStartTime, onSave }: Pr
   }
 
   return (
-    <>
-      <h3 id="setup-stops">3 · Aid stations</h3>
+    <div id="setup-stops">
+      <h3>3 · Aid stations</h3>
       <p className="muted">
         One row for each time the course goes by an aid station (an out-and-back passes each twice). Untick a row that is just the trail
         running close by. Cutoffs are times such as <code>6PM Friday</code>, or hours after the start such as <code>+6h</code>.
@@ -142,7 +142,7 @@ export function StopsEditor({ course, date, startTime, onStartTime, onSave }: Pr
       </div>
       {error && <p role="alert" className="error">{error}</p>}
       <button type="button" className="primary save" onClick={() => void save()}>Save aid stations</button>
-    </>
+    </div>
   )
 }
 

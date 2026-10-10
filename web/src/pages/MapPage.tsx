@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
-import { courseStats, teamProgress } from '../course'
+import { courseStats, stopKey, teamProgress } from '../course'
+import { AidStationFocus } from '../AidStationFocus'
+import { rememberStop, storedStop } from '../activeStop'
 import { CourseStrip } from '../CourseStrip'
 import { lastFix } from '../format'
 import { formatClock } from '../handbook'
@@ -22,6 +24,7 @@ export function MapPage() {
   const [now, setNow] = useState(() => Date.now())
   const [selected, setSelected] = useState<string>()
   const [focus, setFocus] = useState<Focus>()
+  const [activeKey, setActiveKey] = useState<string | undefined>(() => storedStop(id))
 
   const stats = useMemo(() => (event?.course ? courseStats(event.course) : null), [event?.course])
   const start = event ? raceStart(event.date, event.startTime) : undefined
@@ -38,6 +41,15 @@ export function MapPage() {
     return () => clearInterval(t)
   }, [])
 
+  const activeStop = stats?.stops.find((s) => stopKey(s) === activeKey) // a remembered stop that is no longer on the course just doesn't match
+  const activePoint = activeStop && stats ? { name: activeStop.name, ...stats.pointAt(activeStop.distM) } : undefined
+  const pickStop = (key: string | undefined) => {
+    setActiveKey(key)
+    rememberStop(id, key)
+    const s = stats?.stops.find((x) => stopKey(x) === key)
+    if (s && stats) { const p = stats.pointAt(s.distM); setFocus((f) => ({ lat: p.lat, lon: p.lon, seq: (f?.seq ?? 0) + 1 })) }
+  }
+
   if (error) return <p role="alert" className="page error">{error} <Link to="/">Back</Link></p>
   if (!event) return <p className="page">Loading…</p>
 
@@ -49,7 +61,7 @@ export function MapPage() {
 
   return (
     <div className="live">
-      <SweepMap course={event.course} tracks={recent} layers={layers} focus={focus} />
+      <SweepMap course={event.course} tracks={recent} layers={layers} focus={focus} activeStop={activePoint} />
 
       <nav className="rail card" aria-label="Main">
         <Link to="/" className="icon-btn" aria-label="All events" title="All events">
@@ -70,10 +82,11 @@ export function MapPage() {
           </span>
         </header>
         {!event.course && <p className="muted">No course loaded. Upload a GPX in <Link to="/admin">Admin</Link>.</p>}
+        {stats && <AidStationFocus stats={stats} tracks={recent} progress={progress} active={activeStop && stopKey(activeStop)} onChange={pickStop} cutoffLabel={cutoffLabel} />}
         <SweepPanel tracks={recent} now={now} progress={progress} stats={stats} cutoffLabel={cutoffLabel} selected={selected} onSelect={select} />
       </section>
 
-      <CourseStrip stats={stats} tracks={recent} progress={progress} />
+      <CourseStrip stats={stats} tracks={recent} progress={progress} active={activeStop && stopKey(activeStop)} onSelectStop={pickStop} />
     </div>
   )
 }

@@ -130,6 +130,10 @@ button.save { margin-top: 12px; }
 .teams { position: absolute; z-index: 1000; left: 96px; top: 16px; width: 340px; max-height: calc(100% - 200px); box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
 .teams > header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); font-size: 1.1rem; }
 .teams > .muted { padding: 0 18px; }
+.aid-focus { padding: 4px 18px 10px; border-bottom: 1px solid var(--border); }
+.aid-focus label { margin: .4rem 0; }
+.aid-teams { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
+.aid-teams .swatch { width: 10px; height: 10px; margin-right: 4px; }
 .sweeps, .history { list-style: none; padding: 0; margin: 0; }
 .sweeps { padding: 6px; overflow-y: auto; }
 .sweep { border-radius: 12px; }
@@ -160,10 +164,20 @@ button.save { margin-top: 12px; }
 .profile-fill { fill: var(--profile-fill); }
 .profile-line { fill: none; stroke: var(--link); stroke-width: 2; }
 .profile-stop { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 4; opacity: .6; }
-.strip-labels { position: relative; height: 52px; font-size: .75rem; color: var(--text-3); }
-.strip-labels span { position: absolute; top: 2px; white-space: nowrap; }
-.strip-labels .row1 { top: 18px; }
-.strip-labels .strip-team { top: 34px; font-weight: 700; }
+.strip-plot { position: relative; }
+.strip-stop { position: absolute; top: 0; bottom: 0; width: 14px; transform: translateX(-50%); outline-offset: -2px; }
+.strip-stop:hover, .strip-stop:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 4px; }
+.strip-tip { display: none; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); flex-direction: column; gap: 2px; padding: 5px 9px; border-radius: 8px;
+  background: var(--panel-solid); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow); font-size: .8rem; white-space: nowrap; z-index: 1; pointer-events: none; }
+.strip-stop:hover .strip-tip, .strip-stop:focus .strip-tip, .strip-stop.active .strip-tip { display: flex; }
+.strip-stop.active { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 4px; box-shadow: inset 0 0 0 2px var(--accent); }
+.strip-stop.active .strip-tip { border-color: var(--accent); font-weight: 600; }
+.strip-stop { cursor: pointer; }
+.strip-stop.at-start .strip-tip { left: 0; transform: none; }
+.strip-stop.at-end .strip-tip { left: auto; right: 0; transform: none; }
+.strip-labels { position: relative; height: 20px; margin-top: 6px; font-size: .75rem; color: var(--text-3); }
+.strip-labels span { position: absolute; top: 0; white-space: nowrap; }
+.strip-labels .strip-team { font-weight: 700; }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; z-index: 2000; }
 .modal { background: var(--panel-solid); color: var(--text); max-width: 26rem; margin: 1rem; padding: 1rem 1.25rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, .35); }
@@ -229,3 +243,12 @@ ol.outline li::before { content: counter(n) '. '; font-weight: 700; }
 .step.todo .num { background: var(--warn-bg); color: var(--warn); }
 .step .what p { margin: 2px 0 0; font-size: .85rem; color: var(--text-2); }
 .step.waiting .what, .step.optional .what { opacity: .75; }
+
+/* First-run tour (reuses .modal) */
+.tour-count { margin: 0 0 .25rem; font-size: .8rem; }
+.tour-backdrop { position: fixed; inset: 0; z-index: 2000; } /* the spotlight supplies the dimming */
+.tour-spot { position: fixed; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55), 0 0 0 3px var(--accent); pointer-events: none; }
+.modal.tour.at-top, .modal.tour.at-bottom { position: fixed; left: 50%; transform: translateX(-50%); margin: 0; width: calc(100% - 2rem); box-sizing: border-box; }
+.modal.tour.at-top { top: 1rem; }
+.modal.tour.at-bottom { bottom: 1rem; }
+.tour-actions { justify-content: flex-end; margin-top: 1rem; }

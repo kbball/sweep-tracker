@@ -39,7 +39,7 @@ export function AdminPage() {
 
       <SetupGuide event={current} known={known} tileCount={tileCount} />
 
-      <fieldset className="panel">
+      <fieldset className="panel" id="admin-events">
         <legend>Events</legend>
         <ul className="admin-events">
           {events.map((e) => (
